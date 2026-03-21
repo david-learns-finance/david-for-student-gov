@@ -107,6 +107,7 @@ async function initMarket() {
     showMarketClosed();
     await loadAllMarketData();
     subscribeMarket();
+    subscribeMarketStatus();
     return;
   }
 
@@ -192,9 +193,6 @@ function renderAllMarkets() {
             const noPct   = 100 - yesPct;
             const userBet = user?.bets?.[c.market_id];
             const tokens  = user?.tokens || 0;
-            // If user has an existing bet, pre-select that side
-            const yesSelected = userBet?.side === 'yes' || (!userBet && false);
-            const noSelected  = userBet?.side === 'no';
 
             return `
             <div class="candidate-market-card${c.isDavid ? ' is-david' : ''}" data-market="${c.market_id}">
@@ -684,7 +682,10 @@ function renderPriceChart(datasets, labels) {
       plugins: {
         legend: { display: true, position: 'bottom',
           labels: { color: '#4a5568', font: { size: 9 }, boxWidth: 12, padding: 8,
-            filter: (item, chart) => chart.datasets[item.datasetIndex].borderColor !== CHART_GREY
+            filter: (item) => {
+              const ds = datasets[item.datasetIndex];
+              return ds && ds.color !== CHART_GREY;
+            }
           }
         },
         tooltip: { backgroundColor: '#0f1f3d', borderColor: 'rgba(212,160,23,0.3)', borderWidth: 1,
@@ -695,8 +696,6 @@ function renderPriceChart(datasets, labels) {
     }
   });
 }
-
-function subscribePriceChart() {}
 
 function shortTime(iso) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
