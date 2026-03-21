@@ -1,5 +1,5 @@
 /**
- * app.js — David Tay for LPCSG Campaign Site 
+ * app.js — David Tay for LPCSG Campaign Site
  */
 
 const SUPABASE_URL      = 'https://zmcmttvfigrbfmopehsy.supabase.co';
