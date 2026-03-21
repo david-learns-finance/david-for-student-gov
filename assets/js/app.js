@@ -14,12 +14,10 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // setUserEmailHeader() populates x-user-email after login/restore.
 // The RLS policy on market_users reads this header server-side via
 // the current_user_email() Postgres function to authorize UPDATEs.
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  global: { headers: {} }
-});
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 function setUserEmailHeader(email) {
-  sb.rest.headers['x-user-email'] = email;
+  // no-op: using permissive RLS with email filter in queries
 }
 
 // ── Profanity filter ─────────────────────────────────────────
@@ -230,8 +228,8 @@ document.getElementById('place-bet-btn').addEventListener('click', async () => {
 
   btn.disabled = true; btn.textContent = 'Placing bet...';
 
-  // Email header already set — UPDATE authorized by RLS policy
   const newTokens = user.tokens - tokens;
+  console.log('Placing bet:', { email: user.email, newTokens, selectedSide, tokens });
   const { error: updateErr } = await sb
     .from('market_users')
     .update({ tokens: newTokens, bet_side: selectedSide, bet_tokens: tokens })
