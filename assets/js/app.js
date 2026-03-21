@@ -234,9 +234,14 @@ document.addEventListener('click', async function(e) {
   const newTokens  = user.tokens - tokens;
   const newBetToks = (prevBet?.tokens || 0) + tokens;
 
+  // Single UPDATE — always include bet_side/bet_tokens for David's market
+  const updatePayload = mid === 'david_tay'
+    ? { tokens: newTokens, bet_side: side, bet_tokens: newBetToks }
+    : { tokens: newTokens };
+
   const { error: updateErr } = await sb
     .from('market_users')
-    .update({ tokens: newTokens })
+    .update(updatePayload)
     .eq('email', user.email);
 
   if (updateErr) {
@@ -246,13 +251,6 @@ document.addEventListener('click', async function(e) {
   }
 
   await sb.from('predictions').insert([{ market_id: mid, side, tokens, email: user.email }]);
-
-  // Always write bet_side/bet_tokens when betting on David's market (for winner email)
-  if (mid === 'david_tay') {
-    await sb.from('market_users')
-      .update({ bet_side: side, bet_tokens: newBetToks })
-      .eq('email', user.email);
-  }
 
   if (!user.bets) user.bets = {};
   user.bets[mid] = { side, tokens: newBetToks };
@@ -284,10 +282,21 @@ async function showReferralNotif(user) {
     .select('email')
     .eq('referred_by', user.email);
 
-  if (data && data.length > 0) {
-    const bonus = data.length * 20;
-    notif.style.display = 'block';
-    notif.innerHTML = `🎁 You've referred <strong>${data.length} student${data.length !== 1 ? 's' : ''}</strong> and earned <strong>+${bonus} bonus tokens</strong> from referrals!`;
+  if (!data || data.length === 0) return;
+
+  const referralCount  = data.length;
+  const totalEarned    = referralCount * 20;
+  // Base tokens = 100 + referral bonus earned. If user has spent below base 100, they've used referral tokens.
+  const baseTokens     = 100 + totalEarned;
+  const spentReferral  = user.tokens < baseTokens;
+
+  notif.style.display = 'block';
+  if (spentReferral) {
+    notif.innerHTML = `✅ You've referred <strong>${referralCount} student${referralCount !== 1 ? 's' : ''}</strong> and earned <strong>+${totalEarned} tokens</strong>. All spent — good luck! 🎯`;
+    // Fade out after 5s
+    setTimeout(() => { notif.style.opacity = '0'; setTimeout(() => { notif.style.display = 'none'; }, 600); }, 5000);
+  } else {
+    notif.innerHTML = `🎁 You've referred <strong>${referralCount} student${referralCount !== 1 ? 's' : ''}</strong> and earned <strong>+${totalEarned} bonus tokens</strong>. Use them wisely!`;
   }
 }
 
@@ -496,7 +505,7 @@ async function loadPriceChart() {
 
   const allTimes = [...new Set(data.map(d => d.created_at))].sort();
 
-  const datasets = CANDIDATES.map((c, idx) => {
+  const datasets = CANDIDATES.map((c) => {
     const candBets = data.filter(d => d.market_id === c.market_id);
     if (candBets.length === 0) return null;
 
@@ -505,6 +514,8 @@ async function loadPriceChart() {
     candBets.forEach(b => {
       if (b.side === 'yes') yesTotal += b.tokens;
       else noTotal += b.tokens;
+      // Probability = yesTokens / totalTokens in this market
+      // This is correct: it reflects what fraction of all bettors back YES
       betMap[b.created_at] = Math.round(yesTotal / (yesTotal + noTotal) * 100);
     });
 
