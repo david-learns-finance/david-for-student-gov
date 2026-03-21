@@ -202,8 +202,10 @@ document.getElementById('reg-btn').addEventListener('click', async () => {
 });
 
 // ── Bet side selection ────────────────────────────────────────
-document.getElementById('bet-yes').addEventListener('click', () => selectSide('yes'));
-document.getElementById('bet-no').addEventListener('click',  () => selectSide('no'));
+document.addEventListener('click', function(e) {
+  if (e.target.closest('#bet-yes')) selectSide('yes');
+  if (e.target.closest('#bet-no'))  selectSide('no');
+});
 
 function selectSide(side) {
   selectedSide = side;
@@ -218,7 +220,8 @@ function selectSide(side) {
 }
 
 // ── Place bet ─────────────────────────────────────────────────
-document.getElementById('place-bet-btn').addEventListener('click', async () => {
+document.addEventListener('click', async function(e) {
+  if (!e.target.closest('#place-bet-btn')) return;
   const user = getUser();
   if (!user || !selectedSide) return;
 
