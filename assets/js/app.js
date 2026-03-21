@@ -645,7 +645,7 @@ function renderPriceChart(datasets, labels) {
   if (!datasets || datasets.length === 0) {
     priceChart = new Chart(canvas, {
       type: 'line',
-      data: { labels: ['Now'], datasets: [{ data: [50], borderColor: CHART_GREY, borderWidth: 1.5, pointRadius: 0, tension: 0.3 }] },
+      data: { labels: ['Now'], datasets: [{ data: [50], borderColor: '#8896a8', borderWidth: 1.5, pointRadius: 0, tension: 0.3 }] },
       options: { responsive: true, plugins: { legend: { display: false } },
         scales: {
           x: { grid: { display: false }, ticks: { color: '#8896a8', font: { size: 9 } } },
