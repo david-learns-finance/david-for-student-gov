@@ -74,6 +74,9 @@ function switchTab(tab) {
 // marketData[market_id] = { yes: n, no: n, yesCount: n, noCount: n }
 const marketData = {};
 
+// ── Market status ─────────────────────────────────────────────
+let marketClosed = false;
+
 async function initMarket() {
   const user = getUser();
   if (user && user.registered) {
@@ -89,14 +92,8 @@ async function initMarket() {
     .single();
 
   if (setting?.value === 'closed') {
-    document.getElementById('market-card').innerHTML = `
-      <p class="card-title">🎯 Prediction Market</p>
-      <div style="text-align:center;padding:1.5rem 0;">
-        <p style="font-size:1.5rem;margin-bottom:0.5rem;">🏁</p>
-        <p style="font-weight:700;color:var(--navy);margin-bottom:0.25rem;">Market Closed</p>
-        <p style="font-size:0.82rem;color:var(--text3);">The election has concluded. Results have been sent to all winners.</p>
-      </div>
-    `;
+    marketClosed = true;
+    showMarketClosed();
     await loadAllMarketData();
     subscribeMarket();
     return;
@@ -104,6 +101,17 @@ async function initMarket() {
 
   await loadAllMarketData();
   subscribeMarket();
+}
+
+function showMarketClosed() {
+  document.getElementById('market-card').innerHTML = `
+    <p class="card-title">🎯 Prediction Market</p>
+    <div style="text-align:center;padding:1.5rem 0;">
+      <p style="font-size:1.5rem;margin-bottom:0.5rem;">🏁</p>
+      <p style="font-weight:700;color:var(--navy);margin-bottom:0.25rem;">Market Closed</p>
+      <p style="font-size:0.82rem;color:var(--text3);">The election has concluded. Results have been sent to all winners.</p>
+    </div>
+  `;
 }
 
 async function loadAllMarketData() {
@@ -237,6 +245,7 @@ document.addEventListener('click', function(e) {
 document.addEventListener('click', async function(e) {
   const betBtn = e.target.closest('.cmc-bet-btn');
   if (!betBtn || betBtn.disabled) return;
+  if (marketClosed) { showMarketClosed(); return; }
 
   const mid    = betBtn.dataset.market;
   const card   = document.querySelector(`.candidate-market-card[data-market="${mid}"]`);
@@ -324,6 +333,7 @@ async function showReferralNotif(user) {
 
 // ── Registration ─────────────────────────────────────────────
 document.getElementById('reg-btn').addEventListener('click', async () => {
+  if (marketClosed) { showMarketClosed(); return; }
   const email = document.getElementById('reg-email').value.trim().toLowerCase();
   const name  = document.getElementById('reg-name').value.trim();
   const errEl = document.getElementById('reg-err');
