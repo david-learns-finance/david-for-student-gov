@@ -95,10 +95,11 @@
         </div>
 
         <div id="bet-placed" style="display:none;">
-          <div class="card" style="background:var(--black);border-color:rgba(46,204,113,0.25);margin-bottom:0;">
-            <p style="font-size:0.85rem;color:var(--green);font-weight:700;">✓ Bet placed! Check the leaderboard after election day.</p>
+          <div class="card" style="background:var(--black);border-color:rgba(46,204,113,0.25);margin-bottom:0.75rem;">
+            <p style="font-size:0.85rem;color:var(--green);font-weight:700;">✓ Bet placed!</p>
           </div>
         </div>
+        <p id="bet-add-note" style="display:none;font-size:0.75rem;color:var(--white40);margin-bottom:0.75rem;">You can add more tokens to your existing bet on the same side.</p>
       </div>
     </div>
 
@@ -384,6 +385,30 @@
   </div><!-- /page-vision -->
 
 </div><!-- /app -->
+
+<!-- ── Referral Popup ── -->
+<div id="referral-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:300;align-items:center;justify-content:center;padding:1rem;">
+  <div style="background:var(--black2);border:1px solid rgba(212,160,23,0.25);border-radius:16px;padding:1.5rem;width:100%;max-width:360px;">
+    <p style="font-family:var(--font-display);font-size:1.8rem;color:var(--white);margin-bottom:0.25rem;">🎁 Referral Bonus</p>
+    <p style="font-size:0.82rem;color:var(--white70);margin-bottom:1.25rem;line-height:1.5;">Were you referred by another LPC student? You'll both receive <strong style="color:var(--gold2);">+20 bonus tokens</strong>.</p>
+
+    <!-- Step 1: Yes / No -->
+    <div id="ref-no-step">
+      <button id="ref-yes-btn" class="btn btn-gold" style="margin-bottom:0.6rem;">Yes, I was referred</button>
+      <button id="ref-no-btn" class="btn btn-outline">No thanks, start with 100</button>
+    </div>
+
+    <!-- Step 2: Enter referrer email -->
+    <div id="ref-yes-step" style="display:none;">
+      <div class="field-wrap">
+        <label class="input-label" for="ref-input">Referrer's Campus Email</label>
+        <input class="input-field" type="email" id="ref-input" placeholder="theirname@zonemail.clpccd.edu" />
+        <p class="err-text" id="ref-err"></p>
+      </div>
+      <button id="ref-submit-btn" class="btn btn-gold">Submit →</button>
+    </div>
+  </div>
+</div>
 
 
 <!-- ── Bottom Tab Bar ── -->
