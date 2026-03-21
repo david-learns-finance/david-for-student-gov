@@ -1,36 +1,26 @@
 /**
  * app.js — David Tay for LPCSG Campaign Site
- * Handles: tab nav, prediction market, price chart, voice wall
- *
- * ╔══════════════════════════════════════════╗
- * ║  Fill in your Supabase credentials:     ║
- * ╚══════════════════════════════════════════╝
  */
 
 const SUPABASE_URL      = 'https://zmcmttvfigrbfmopehsy.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InptY210dHZmaWdyYmZtb3BlaHN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NTU1NTAsImV4cCI6MjA4OTUzMTU1MH0.uRUFXySs5UHxUT0HDzS5EqcgEnDXbc6dh9R0u4ib3pg';
-
-// ── Supabase client ──────────────────────────────────────────
-// setUserEmailHeader() populates x-user-email after login/restore.
-// The RLS policy on market_users reads this header server-side via
-// the current_user_email() Postgres function to authorize UPDATEs.
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-function setUserEmailHeader(email) {
-  // no-op: using permissive RLS with email filter in queries
-}
+// ── Profanity filter (extended with common bypasses) ─────────
+const BLOCKED = [
+  'fuck','fck','f u c k','f*ck','sh1t','shit','ass','bitch','cunt','dick',
+  'cock','pussy','nigger','nigga','faggot','fag','retard','whore','slut',
+  'bastard','crap','piss','asshole','motherfucker','bullshit','jackass',
+  'fuk','fuq','b1tch','a55','d1ck','b!tch','n1gga','wtf'
+];
+const profRE = new RegExp(
+  '(' + BLOCKED.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')',
+  'i'
+);
 
-// ── Profanity filter ─────────────────────────────────────────
-const BLOCKED = ['fuck','shit','ass','bitch','cunt','dick','cock','pussy',
-  'nigger','nigga','faggot','fag','retard','whore','slut','bastard','crap',
-  'piss','asshole','motherfucker','bullshit','jackass'];
-const profRE = new RegExp('\\b(' + BLOCKED.join('|') + ')\\b', 'i');
-
-// ── Email domain validation ──────────────────────────────────
+// ── Email validation ─────────────────────────────────────────
 const VALID_DOMAIN = '@zonemail.clpccd.edu';
-function isValidEmail(email) {
-  return email.trim().toLowerCase().endsWith(VALID_DOMAIN);
-}
+function isValidEmail(e) { return e.trim().toLowerCase().endsWith(VALID_DOMAIN); }
 
 // ── Toast ────────────────────────────────────────────────────
 function showToast(msg, duration = 3000) {
@@ -40,12 +30,10 @@ function showToast(msg, duration = 3000) {
   setTimeout(() => t.classList.remove('show'), duration);
 }
 
-// ── Local state ──────────────────────────────────────────────
+// ── LocalStorage ─────────────────────────────────────────────
 const LS_KEY = 'david_tay_user';
-function getUser() {
-  try { return JSON.parse(localStorage.getItem(LS_KEY)); } catch { return null; }
-}
-function saveUser(u) { localStorage.setItem(LS_KEY, JSON.stringify(u)); }
+function getUser()    { try { return JSON.parse(localStorage.getItem(LS_KEY)); } catch { return null; } }
+function saveUser(u)  { localStorage.setItem(LS_KEY, JSON.stringify(u)); }
 
 // ══════════════════════════════════════════════════════════════
 //  TAB NAVIGATION
@@ -67,28 +55,20 @@ let selectedSide = null;
 
 async function initMarket() {
   const user = getUser();
-  if (user && user.registered) {
-    setUserEmailHeader(user.email);
-    showBetUI(user);
-  }
+  if (user && user.registered) showBetUI(user);
   await loadMarketData();
   subscribeMarket();
 }
 
 async function loadMarketData() {
-  const { data, error } = await sb
-    .from('predictions')
-    .select('side, tokens');
-
+  const { data, error } = await sb.from('predictions').select('side, tokens');
   if (error || !data) return;
-
-  const yes      = data.filter(r => r.side === 'yes');
-  const no       = data.filter(r => r.side === 'no');
+  const yes = data.filter(r => r.side === 'yes');
+  const no  = data.filter(r => r.side === 'no');
   const yesTotal = yes.reduce((s, r) => s + r.tokens, 0);
   const noTotal  = no.reduce((s, r) => s + r.tokens, 0);
   const total    = yesTotal + noTotal || 1;
   const yesPct   = Math.round(yesTotal / total * 100);
-
   document.getElementById('odds-yes').textContent  = yesPct + '%';
   document.getElementById('odds-no').textContent   = (100 - yesPct) + '%';
   document.getElementById('count-yes').textContent = yes.length + ' bet' + (yes.length !== 1 ? 's' : '');
@@ -108,14 +88,31 @@ function showBetUI(user) {
   document.getElementById('user-tokens').textContent       = user.tokens;
 
   if (user.bet) {
-    document.getElementById('bet-interface').style.display = 'none';
+    // Has existing bet — show add-more interface locked to same side
     document.getElementById('bet-placed').style.display    = 'block';
     document.getElementById('user-bet-info').textContent   =
       'Bet: ' + user.bet.tokens + ' tokens on ' + user.bet.side.toUpperCase();
+
+    if (user.tokens > 0) {
+      // Allow adding more tokens to same side
+      document.getElementById('bet-interface').style.display = 'block';
+      document.getElementById('bet-add-note').style.display  = 'block';
+      // Lock to original side
+      selectSide(user.bet.side);
+      document.getElementById('bet-yes').style.pointerEvents = user.bet.side === 'yes' ? 'auto' : 'none';
+      document.getElementById('bet-no').style.pointerEvents  = user.bet.side === 'no'  ? 'auto' : 'none';
+      document.getElementById('bet-yes').style.opacity = user.bet.side === 'yes' ? '1' : '0.3';
+      document.getElementById('bet-no').style.opacity  = user.bet.side === 'no'  ? '1' : '0.3';
+    } else {
+      document.getElementById('bet-interface').style.display = 'none';
+    }
   }
 
+  // Slider — step of 1
   const slider = document.getElementById('token-slider');
   slider.max   = user.tokens;
+  slider.min   = 1;
+  slider.step  = 1;
   slider.value = Math.min(50, user.tokens);
   document.getElementById('slider-val').textContent = slider.value;
   slider.addEventListener('input', () => {
@@ -125,86 +122,45 @@ function showBetUI(user) {
 
 // ── Registration ─────────────────────────────────────────────
 document.getElementById('reg-btn').addEventListener('click', async () => {
-  const emailRaw = document.getElementById('reg-email').value.trim();
-  const email    = emailRaw.toLowerCase();
-  const name     = document.getElementById('reg-name').value.trim();
-  const errEl    = document.getElementById('reg-err');
-  const btn      = document.getElementById('reg-btn');
+  const email = document.getElementById('reg-email').value.trim().toLowerCase();
+  const name  = document.getElementById('reg-name').value.trim();
+  const errEl = document.getElementById('reg-err');
+  const btn   = document.getElementById('reg-btn');
 
   if (!isValidEmail(email)) { errEl.classList.add('show'); return; }
   errEl.classList.remove('show');
   btn.disabled = true; btn.textContent = 'Registering...';
 
-  // Set header before any queries so the RLS policy can authorize them
-  setUserEmailHeader(email);
-
   const { data: existing } = await sb
     .from('market_users')
-    .select('id, tokens, bet_side, bet_tokens, display_name')
+    .select('id, tokens, bet_side, bet_tokens, display_name, referred_by')
     .eq('email', email)
     .single();
 
   if (existing) {
-    // Returning user — restore exactly what Supabase has, never modify tokens
     const user = {
-      registered: true,
-      email,
+      registered: true, email,
       name: existing.display_name || name || null,
       tokens: existing.tokens,
       bet: existing.bet_side ? { side: existing.bet_side, tokens: existing.bet_tokens } : null
     };
     saveUser(user);
-    setUserEmailHeader(email);
     showBetUI(user);
     showToast('Welcome back! 🎉');
     btn.disabled = false; btn.textContent = 'Claim My Tokens →';
     return;
   }
 
-  // Only reaches here for brand new emails never seen before
-  const { error } = await sb.from('market_users').insert([{
-    email, display_name: name || null, tokens: 100
-  }]);
-
-  if (error) {
-    // If unique constraint violated, treat as returning user and re-fetch
-    if (error.code === '23505') {
-      const { data: retry } = await sb
-        .from('market_users')
-        .select('id, tokens, bet_side, bet_tokens, display_name')
-        .eq('email', email)
-        .single();
-      if (retry) {
-        const user = {
-          registered: true, email,
-          name: retry.display_name || name || null,
-          tokens: retry.tokens,
-          bet: retry.bet_side ? { side: retry.bet_side, tokens: retry.bet_tokens } : null
-        };
-        saveUser(user);
-        setUserEmailHeader(email);
-        showBetUI(user);
-        showToast('Welcome back! 🎉');
-        btn.disabled = false; btn.textContent = 'Claim My Tokens →';
-        return;
-      }
-    }
-    showToast('Something went wrong. Try again.');
-    btn.disabled = false; btn.textContent = 'Claim My Tokens →';
-    return;
-  }
-
-  const user = { registered: true, email, name: name || null, tokens: 100, bet: null };
-  saveUser(user);
-  showBetUI(user);
-  showToast('100 tokens claimed! Place your bet 🪙');
+  // New user — show referral popup before inserting
   btn.disabled = false; btn.textContent = 'Claim My Tokens →';
+  showReferralPopup(email, name);
 });
 
 // ── Bet side selection ────────────────────────────────────────
 document.addEventListener('click', function(e) {
-  if (e.target.closest('#bet-yes')) selectSide('yes');
-  if (e.target.closest('#bet-no'))  selectSide('no');
+  const user = getUser();
+  if (e.target.closest('#bet-yes') && (!user?.bet || user.bet.side === 'yes')) selectSide('yes');
+  if (e.target.closest('#bet-no')  && (!user?.bet || user.bet.side === 'no'))  selectSide('no');
 });
 
 function selectSide(side) {
@@ -215,27 +171,29 @@ function selectSide(side) {
     el.classList.toggle(s, s === side);
   });
   const btn = document.getElementById('place-bet-btn');
-  btn.disabled = false;
+  btn.disabled    = false;
   btn.textContent = 'Place Bet on ' + side.toUpperCase() + ' →';
 }
 
 // ── Place bet ─────────────────────────────────────────────────
 document.addEventListener('click', async function(e) {
   if (!e.target.closest('#place-bet-btn')) return;
+
   const user = getUser();
   if (!user || !selectedSide) return;
 
-  const tokens = parseInt(document.getElementById('token-slider').value);
-  const errEl  = document.getElementById('bet-err');
-  const btn    = document.getElementById('place-bet-btn');
+  const tokens    = parseInt(document.getElementById('token-slider').value);
+  const errEl     = document.getElementById('bet-err');
+  const btn       = document.getElementById('place-bet-btn');
 
   btn.disabled = true; btn.textContent = 'Placing bet...';
 
-  const newTokens = user.tokens - tokens;
-  console.log('Placing bet:', { email: user.email, newTokens, selectedSide, tokens });
+  const newTokens     = user.tokens - tokens;
+  const newBetTokens  = (user.bet?.tokens || 0) + tokens;
+
   const { error: updateErr } = await sb
     .from('market_users')
-    .update({ tokens: newTokens, bet_side: selectedSide, bet_tokens: tokens })
+    .update({ tokens: newTokens, bet_side: selectedSide, bet_tokens: newBetTokens })
     .eq('email', user.email);
 
   if (updateErr) {
@@ -247,21 +205,125 @@ document.addEventListener('click', async function(e) {
 
   await sb.from('predictions').insert([{ side: selectedSide, tokens, email: user.email }]);
 
-  user.tokens = newTokens;
-  user.bet    = { side: selectedSide, tokens };
+  user.tokens   = newTokens;
+  user.bet      = { side: selectedSide, tokens: newBetTokens };
   saveUser(user);
 
-  document.getElementById('user-tokens').textContent     = newTokens;
-  document.getElementById('user-bet-info').textContent   =
-    'Bet: ' + tokens + ' tokens on ' + selectedSide.toUpperCase();
-  document.getElementById('bet-interface').style.display = 'none';
-  document.getElementById('bet-placed').style.display    = 'block';
+  document.getElementById('user-tokens').textContent   = newTokens;
+  document.getElementById('user-bet-info').textContent =
+    'Bet: ' + newBetTokens + ' tokens on ' + selectedSide.toUpperCase();
+
+  // Hide bet interface if out of tokens
+  if (newTokens <= 0) {
+    document.getElementById('bet-interface').style.display = 'none';
+    document.getElementById('bet-add-note').style.display  = 'none';
+  } else {
+    const slider = document.getElementById('token-slider');
+    slider.max   = newTokens;
+    slider.value = Math.min(slider.value, newTokens);
+    document.getElementById('slider-val').textContent = slider.value;
+  }
+
   showToast('Bet placed! Good luck 🎯');
   errEl.classList.remove('show');
+  btn.disabled = false; btn.textContent = 'Add More →';
 });
 
 // ══════════════════════════════════════════════════════════════
-//  PRICE PATH CHART  (Kalshi / Polymarket style)
+//  REFERRAL SYSTEM
+// ══════════════════════════════════════════════════════════════
+
+const REFERRAL_BONUS = 20; // tokens awarded to both referrer and new user
+
+function showReferralPopup(email, name) {
+  document.getElementById('referral-popup').style.display = 'flex';
+  document.getElementById('referral-popup').dataset.email = email;
+  document.getElementById('referral-popup').dataset.name  = name;
+}
+
+document.addEventListener('click', async function(e) {
+  // "Yes, I was referred" — show input
+  if (e.target.closest('#ref-yes-btn')) {
+    document.getElementById('ref-no-step').style.display  = 'none';
+    document.getElementById('ref-yes-step').style.display = 'block';
+  }
+
+  // "No thanks" — register without referral
+  if (e.target.closest('#ref-no-btn')) {
+    const popup = document.getElementById('referral-popup');
+    await completeRegistration(popup.dataset.email, popup.dataset.name, null);
+    popup.style.display = 'none';
+  }
+
+  // Submit referral
+  if (e.target.closest('#ref-submit-btn')) {
+    const popup       = document.getElementById('referral-popup');
+    const referrerRaw = document.getElementById('ref-input').value.trim().toLowerCase();
+    const errEl       = document.getElementById('ref-err');
+    const btn         = document.getElementById('ref-submit-btn');
+
+    if (!referrerRaw) {
+      errEl.textContent = 'Please enter the referrer\'s email.';
+      errEl.classList.add('show'); return;
+    }
+    if (!isValidEmail(referrerRaw)) {
+      errEl.textContent = 'Must be a @zonemail.clpccd.edu email.';
+      errEl.classList.add('show'); return;
+    }
+    if (referrerRaw === popup.dataset.email) {
+      errEl.textContent = 'You can\'t refer yourself!';
+      errEl.classList.add('show'); return;
+    }
+    errEl.classList.remove('show');
+    btn.disabled = true; btn.textContent = 'Submitting...';
+
+    // Check referrer exists
+    const { data: referrer } = await sb
+      .from('market_users')
+      .select('id, tokens, email')
+      .eq('email', referrerRaw)
+      .single();
+
+    if (!referrer) {
+      errEl.textContent = 'Referrer email not found. Ask them to register first.';
+      errEl.classList.add('show');
+      btn.disabled = false; btn.textContent = 'Submit →';
+      return;
+    }
+
+    // Give referrer bonus tokens
+    await sb.from('market_users')
+      .update({ tokens: referrer.tokens + REFERRAL_BONUS })
+      .eq('email', referrerRaw);
+
+    // Register new user with bonus + referral note
+    await completeRegistration(popup.dataset.email, popup.dataset.name, referrerRaw, 100 + REFERRAL_BONUS);
+    popup.style.display = 'none';
+    showToast('Registered! You and ' + referrerRaw.split('@')[0] + ' each got +' + REFERRAL_BONUS + ' tokens 🎁');
+  }
+});
+
+async function completeRegistration(email, name, referredBy, tokens = 100) {
+  const { error } = await sb.from('market_users').insert([{
+    email,
+    display_name: name || null,
+    tokens,
+    referred_by: referredBy || null
+  }]);
+
+  if (error && error.code !== '23505') {
+    showToast('Something went wrong. Try again.');
+    return;
+  }
+
+  const user = { registered: true, email, name: name || null, tokens, bet: null };
+  saveUser(user);
+  showBetUI(user);
+  if (!referredBy) showToast('100 tokens claimed! Place your bet 🪙');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PRICE PATH CHART
 // ══════════════════════════════════════════════════════════════
 
 let priceChart = null;
@@ -274,14 +336,10 @@ async function loadPriceChart() {
 
   const canvas = document.getElementById('price-chart');
   if (!canvas) return;
-
-  if (error || !data || data.length < 2) {
-    renderPriceChart([50], ['Now']); return;
-  }
+  if (error || !data || data.length < 2) { renderPriceChart([50], ['Now']); return; }
 
   let yesTotal = 0, noTotal = 0;
   const points = [], labels = [];
-
   data.forEach((bet, i) => {
     if (bet.side === 'yes') yesTotal += bet.tokens;
     else noTotal += bet.tokens;
@@ -290,7 +348,6 @@ async function loadPriceChart() {
       i % Math.max(1, Math.floor(data.length / 5)) === 0;
     labels.push(showLabel ? shortTime(bet.created_at) : '');
   });
-
   renderPriceChart(points, labels);
 }
 
@@ -303,11 +360,9 @@ function renderPriceChart(points, labels) {
   if (priceChart) priceChart.destroy();
   priceChart = new Chart(canvas, {
     type: 'line',
-    data: { labels, datasets: [{
-      data: points, borderColor: color, backgroundColor: fillColor,
+    data: { labels, datasets: [{ data: points, borderColor: color, backgroundColor: fillColor,
       borderWidth: 2, pointRadius: 0, pointHoverRadius: 5,
-      pointHoverBackgroundColor: color, tension: 0.35, fill: true
-    }]},
+      pointHoverBackgroundColor: color, tension: 0.35, fill: true }]},
     options: {
       responsive: true, animation: { duration: 400 },
       interaction: { mode: 'index', intersect: false },
@@ -318,11 +373,9 @@ function renderPriceChart(points, labels) {
       },
       plugins: {
         legend: { display: false },
-        tooltip: {
-          backgroundColor: '#1a1a1a', borderColor: 'rgba(212,160,23,0.3)', borderWidth: 1,
+        tooltip: { backgroundColor: '#1a1a1a', borderColor: 'rgba(212,160,23,0.3)', borderWidth: 1,
           titleColor: 'rgba(255,255,255,0.5)', bodyColor: '#fff', bodyFont: { weight: 'bold', size: 13 },
-          callbacks: { title: () => 'YES probability', label: ctx => ' ' + ctx.parsed.y + '%' }
-        }
+          callbacks: { title: () => 'YES probability', label: ctx => ' ' + ctx.parsed.y + '%' }}
       }
     }
   });
@@ -356,7 +409,6 @@ async function loadVoiceWall() {
 
   const wall  = document.getElementById('msg-wall');
   const empty = document.getElementById('wall-empty');
-
   if (error || !data || data.length === 0) { empty.style.display = 'block'; return; }
   empty.style.display = 'none';
   wall.innerHTML = data.map(m => `
@@ -368,8 +420,6 @@ async function loadVoiceWall() {
       <div class="msg-text">${escapeHtml(m.text)}</div>
     </div>
   `).join('');
-
-  // Scroll to bottom so newest message is visible
   const scroll = wall.closest('.msg-scroll');
   if (scroll) scroll.scrollTop = scroll.scrollHeight;
 }
@@ -382,7 +432,6 @@ function subscribeVoiceWall() {
         const empty = document.getElementById('wall-empty');
         const wall  = document.getElementById('msg-wall');
         if (empty) empty.style.display = 'none';
-
         const div = document.createElement('div');
         div.className = 'msg-item';
         div.style.animation = 'fadeIn 0.3s ease';
@@ -394,12 +443,10 @@ function subscribeVoiceWall() {
           <div class="msg-text">${escapeHtml(m.text)}</div>
         `;
         wall.appendChild(div);
-        // Scroll to bottom so new message is visible
         const scroll = wall.closest('.msg-scroll');
         if (scroll) scroll.scrollTop = scroll.scrollHeight;
       }
-    )
-    .subscribe();
+    ).subscribe();
 }
 
 const voiceTextarea = document.getElementById('voice-msg');
@@ -407,8 +454,9 @@ const charLeft      = document.getElementById('char-left');
 voiceTextarea.addEventListener('input', () => {
   charLeft.textContent = 280 - voiceTextarea.value.length;
 });
+// Enter submits, no Shift+Enter new line
 voiceTextarea.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitVoice(); }
+  if (e.key === 'Enter') { e.preventDefault(); submitVoice(); }
 });
 document.getElementById('voice-submit').addEventListener('click', submitVoice);
 
@@ -417,7 +465,6 @@ async function submitVoice() {
   const errEl = document.getElementById('voice-err');
   const btn   = document.getElementById('voice-submit');
   const cat   = document.getElementById('voice-cat').value;
-
   if (!text) { voiceTextarea.focus(); return; }
   if (profRE.test(text)) {
     errEl.textContent = '⚠ Please keep messages respectful.';
@@ -425,7 +472,6 @@ async function submitVoice() {
   }
   errEl.classList.remove('show');
   btn.disabled = true; btn.textContent = 'Submitting...';
-
   const { error } = await sb.from('voice_messages').insert([{ text, category: cat }]);
   if (error) {
     errEl.textContent = '⚠ Something went wrong. Try again.';
@@ -460,16 +506,11 @@ function timeAgo(iso) {
 // ══════════════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // Restore email header immediately if a session already exists
-  const existingUser = getUser();
-  if (existingUser?.email) setUserEmailHeader(existingUser.email);
-
   await initMarket();
   await loadPriceChart();
   await loadVoiceWall();
   subscribePriceChart();
   subscribeVoiceWall();
-
   setInterval(loadVoiceWall, 60000);
 });
 
@@ -478,17 +519,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ══════════════════════════════════════════════════════════════
 
 function initBioSlideshow() {
-  const slides  = Array.from(document.querySelectorAll('.bio-slide'));
+  const slides   = Array.from(document.querySelectorAll('.bio-slide'));
   const dotsWrap = document.getElementById('bio-dots');
   const prevBtn  = document.getElementById('bio-prev');
   const nextBtn  = document.getElementById('bio-next');
   if (!slides.length) return;
 
-  let current = 0;
-  let timer   = null;
+  let current = 0, timer = null;
   const DELAY = 4000;
 
-  // Build dots
   slides.forEach((_, i) => {
     const dot = document.createElement('button');
     dot.className = 'bio-dot' + (i === 0 ? ' active' : '');
@@ -498,7 +537,6 @@ function initBioSlideshow() {
   });
 
   function dots() { return Array.from(dotsWrap.querySelectorAll('.bio-dot')); }
-
   function goTo(n) {
     slides[current].classList.remove('active');
     dots()[current] && dots()[current].classList.remove('active');
@@ -507,16 +545,11 @@ function initBioSlideshow() {
     dots()[current] && dots()[current].classList.add('active');
     resetTimer();
   }
-
-  function resetTimer() {
-    clearInterval(timer);
-    timer = setInterval(() => goTo(current + 1), DELAY);
-  }
+  function resetTimer() { clearInterval(timer); timer = setInterval(() => goTo(current + 1), DELAY); }
 
   if (prevBtn) prevBtn.addEventListener('click', () => goTo(current - 1));
   if (nextBtn) nextBtn.addEventListener('click', () => goTo(current + 1));
 
-  // Swipe support
   const wrap = document.querySelector('.bio-slideshow');
   let tx = 0;
   wrap.addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive: true });
@@ -544,7 +577,6 @@ function initReelCarousel() {
 
   let current = 0;
 
-  // Build dots
   slides.forEach((_, i) => {
     const dot = document.createElement('button');
     dot.className = 'reel-dot' + (i === 0 ? ' active' : '');
@@ -554,30 +586,37 @@ function initReelCarousel() {
   });
 
   function dots() { return Array.from(dotsWrap.querySelectorAll('.reel-dot')); }
-
   function goTo(n) {
     current = (n + slides.length) % slides.length;
     carousel.style.transform = `translateX(-${current * 100}%)`;
     dots().forEach((d, i) => d.classList.toggle('active', i === current));
   }
 
-  // Touch swipe
-  let tx = 0;
-  carousel.addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive: true });
-  carousel.addEventListener('touchend', e => {
+  // Touch swipe — use the wrapper, not the carousel itself (avoids Instagram iframe conflict)
+  const wrap = carousel.closest('.reel-carousel-wrap');
+  let tx = 0, ty = 0;
+  wrap.addEventListener('touchstart', e => {
+    tx = e.touches[0].clientX;
+    ty = e.touches[0].clientY;
+  }, { passive: true });
+  wrap.addEventListener('touchend', e => {
     const dx = e.changedTouches[0].clientX - tx;
-    if (Math.abs(dx) > 40) dx < 0 ? goTo(current + 1) : goTo(current - 1);
+    const dy = e.changedTouches[0].clientY - ty;
+    // Only trigger if horizontal swipe is dominant
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
+      dx < 0 ? goTo(current + 1) : goTo(current - 1);
+    }
   }, { passive: true });
 
-  // Mouse drag (desktop)
+  // Mouse drag
   let mx = 0, dragging = false;
-  carousel.addEventListener('mousedown', e => { mx = e.clientX; dragging = true; });
-  carousel.addEventListener('mouseup',   e => {
+  wrap.addEventListener('mousedown', e => { mx = e.clientX; dragging = true; });
+  wrap.addEventListener('mouseup', e => {
     if (!dragging) return; dragging = false;
     const dx = e.clientX - mx;
     if (Math.abs(dx) > 40) dx < 0 ? goTo(current + 1) : goTo(current - 1);
   });
-  carousel.addEventListener('mouseleave', () => { dragging = false; });
+  wrap.addEventListener('mouseleave', () => { dragging = false; });
 }
 
 document.addEventListener('DOMContentLoaded', initReelCarousel);
