@@ -247,8 +247,8 @@ document.addEventListener('click', async function(e) {
 
   await sb.from('predictions').insert([{ market_id: mid, side, tokens, email: user.email }]);
 
-  // Update market_users bet columns only for David's market (for winner email)
-  if (mid === 'david_dof') {
+  // Always write bet_side/bet_tokens when betting on David's market (for winner email)
+  if (mid === 'david_tay') {
     await sb.from('market_users')
       .update({ bet_side: side, bet_tokens: newBetToks })
       .eq('email', user.email);
@@ -399,6 +399,14 @@ document.addEventListener('click', async function(e) {
       .update({ tokens: referrerData.tokens + REFERRAL_BONUS })
       .eq('email', referrer);
 
+    // If referrer is the current session user, update their localStorage too
+    const currentUser = getUser();
+    if (currentUser && currentUser.email === referrer) {
+      currentUser.tokens = referrerData.tokens + REFERRAL_BONUS;
+      saveUser(currentUser);
+      document.getElementById('user-tokens').textContent = currentUser.tokens;
+    }
+
     await completeRegistration(popup.dataset.email, popup.dataset.name, referrer, 100 + REFERRAL_BONUS);
     popup.style.display = 'none';
     showToast('Registered! You and ' + referrer.split('@')[0] + ' each got +' + REFERRAL_BONUS + ' tokens 🎁');
@@ -444,7 +452,6 @@ function initCandidateCarousel(totalSlides) {
   }
 
   let tx = 0, ty = 0;
-  carousel.addEventListener('touchstart', e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
   carousel.addEventListener('touchend', e => {
     const dx = e.changedTouches[0].clientX - tx;
     const dy = e.changedTouches[0].clientY - ty;
@@ -452,13 +459,22 @@ function initCandidateCarousel(totalSlides) {
   }, { passive: true });
 
   let mx = 0, dragging = false;
-  carousel.addEventListener('mousedown', e => { mx = e.clientX; dragging = true; });
+  carousel.addEventListener('mousedown', e => {
+    if (e.target.closest('.cmc-slider')) return; // ignore slider interactions
+    mx = e.clientX; dragging = true;
+  });
   carousel.addEventListener('mouseup', e => {
     if (!dragging) return; dragging = false;
     const dx = e.clientX - mx;
     if (Math.abs(dx) > 35) dx < 0 ? goTo(current + 1) : goTo(current - 1);
   });
   carousel.addEventListener('mouseleave', () => { dragging = false; });
+
+  // Also block touch swipe when touch starts on a slider
+  carousel.addEventListener('touchstart', e => {
+    if (e.target.closest('.cmc-slider')) { tx = -9999; ty = -9999; return; }
+    tx = e.touches[0].clientX; ty = e.touches[0].clientY;
+  }, { passive: true });
 }
 
 // ══════════════════════════════════════════════════════════════
