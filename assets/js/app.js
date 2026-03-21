@@ -1,5 +1,5 @@
 /**
- * app.js — David Tay for LPCSG Campaign Site 
+ * app.js — David Tay for LPCSG Campaign Site
  */
 
 const SUPABASE_URL      = 'https://zmcmttvfigrbfmopehsy.supabase.co';
@@ -19,15 +19,18 @@ const CANDIDATES = [
   { market_id: 'yina_y',        name: 'Yina Yoon',       isDavid: false },
 ];
 
-// Chart colors — top 5 get distinct colors, rest get grey
+// Chart colors — one distinct color per candidate, in CANDIDATES order
 const CHART_COLORS = [
-  '#d4a017', // gold — David
-  '#2563eb', // blue
-  '#16a34a', // green
-  '#dc2626', // red
-  '#7c3aed', // purple
+  '#d4a017', // David Tay — gold
+  '#2563eb', // Manav Raghuram — blue
+  '#16a34a', // Audrey Arabelo — green
+  '#dc2626', // Preston Lim — red
+  '#7c3aed', // Bryant Liu — purple
+  '#0891b2', // Yasin Qureshi — cyan
+  '#ea580c', // Armaan Shah — orange
+  '#db2777', // Anthony Vuong — pink
+  '#65a30d', // Yina Yoon — lime
 ];
-const CHART_GREY = 'rgba(150,160,175,0.5)';
 
 // ── Profanity filter — uses leo-profanity library ────────────
 // Loads English list + extra bypass patterns on init
@@ -620,14 +623,10 @@ async function loadPriceChart() {
     return { candidate: c, points, totalVolume };
   }).filter(Boolean);
 
-  // Assign colors — David always gets gold, top 4 others get distinct colors, rest grey
-  const sorted = [...datasets].sort((a, b) => b.totalVolume - a.totalVolume);
-  let colorIdx = 1;
-  sorted.forEach(d => {
-    if (d.candidate.isDavid) { d.color = CHART_COLORS[0]; }
-    else {
-      d.color = colorIdx < CHART_COLORS.length ? CHART_COLORS[colorIdx++] : CHART_GREY;
-    }
+  // Assign colors by candidate index — each candidate always gets the same color
+  datasets.forEach(d => {
+    const idx = CANDIDATES.findIndex(c => c.market_id === d.candidate.market_id);
+    d.color = CHART_COLORS[idx] || '#8896a8';
   });
 
   const labels = allTimes.map((t, i) => {
@@ -668,7 +667,6 @@ function renderPriceChart(datasets, labels) {
         borderWidth: d.candidate.isDavid ? 2.5 : 1.5,
         pointRadius: 0, pointHoverRadius: 4,
         tension: 0.35,
-        borderDash: d.color === CHART_GREY ? [3, 3] : [],
       }))
     },
     options: {
@@ -681,12 +679,7 @@ function renderPriceChart(datasets, labels) {
       },
       plugins: {
         legend: { display: true, position: 'bottom',
-          labels: { color: '#4a5568', font: { size: 9 }, boxWidth: 12, padding: 8,
-            filter: (item) => {
-              const ds = datasets[item.datasetIndex];
-              return ds && ds.color !== CHART_GREY;
-            }
-          }
+          labels: { color: '#4a5568', font: { size: 9 }, boxWidth: 12, padding: 8 }
         },
         tooltip: { backgroundColor: '#0f1f3d', borderColor: 'rgba(212,160,23,0.3)', borderWidth: 1,
           titleColor: 'rgba(255,255,255,0.55)', bodyColor: '#fff', bodyFont: { size: 11 },
