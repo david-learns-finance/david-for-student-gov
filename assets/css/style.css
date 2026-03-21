@@ -469,3 +469,6 @@ select.input-field { cursor: pointer; }
   transition: background 0.18s, transform 0.18s;
 }
 .cmc-dot.active { background: var(--gold2); transform: scale(1.35); }
+
+/* Referral banner fade */
+.notif-banner { transition: opacity 0.6s ease; }
