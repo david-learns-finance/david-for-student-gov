@@ -80,6 +80,28 @@ async function initMarket() {
     showBetUI(user);
     showReferralNotif(user);
   }
+
+  // Check if market is still open
+  const { data: setting } = await sb
+    .from('app_settings')
+    .select('value')
+    .eq('key', 'market_status')
+    .single();
+
+  if (setting?.value === 'closed') {
+    document.getElementById('market-card').innerHTML = `
+      <p class="card-title">🎯 Prediction Market</p>
+      <div style="text-align:center;padding:1.5rem 0;">
+        <p style="font-size:1.5rem;margin-bottom:0.5rem;">🏁</p>
+        <p style="font-weight:700;color:var(--navy);margin-bottom:0.25rem;">Market Closed</p>
+        <p style="font-size:0.82rem;color:var(--text3);">The election has concluded. Results have been sent to all winners.</p>
+      </div>
+    `;
+    await loadAllMarketData();
+    subscribeMarket();
+    return;
+  }
+
   await loadAllMarketData();
   subscribeMarket();
 }
