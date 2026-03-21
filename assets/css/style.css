@@ -439,3 +439,33 @@ select.input-field { cursor: pointer; }
 @media (min-width: 481px) {
   #app { border-left: 1px solid var(--border2); border-right: 1px solid var(--border2); }
 }
+
+/* ── Candidate market carousel ── */
+.candidate-markets { overflow: hidden; }
+.cmc-carousel {
+  display: flex;
+  transition: transform 0.38s ease;
+  will-change: transform;
+}
+.cmc-slide {
+  flex: 0 0 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0 2px;
+}
+.cmc-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 0.75rem;
+}
+.cmc-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+  border: none; cursor: pointer; padding: 0;
+  transition: background 0.18s, transform 0.18s;
+}
+.cmc-dot.active { background: var(--gold2); transform: scale(1.35); }
