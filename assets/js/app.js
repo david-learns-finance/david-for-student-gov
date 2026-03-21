@@ -32,22 +32,53 @@ const CHART_COLORS = [
   '#65a30d', // Yina Yoon — lime
 ];
 
-// ── Profanity filter — uses leo-profanity library ────────────
-// Loads English list + extra bypass patterns on init
+// ── Profanity filter — 3-layer system ───────────────────────
+// Layer 1: repeat-character normalization (fuuuck → fuck)
+// Layer 2: leo-profanity local dictionary
+// Layer 3: Supabase Edge Function proxy → OpenAI Moderation API
+const MODERATION_URL = 'https://zmcmttvfigrbfmopehsy.supabase.co/functions/v1/moderate-message';
+
+function normalizeText(text) {
+  return text.replace(/(.)\1{2,}/gi, '$1$1');
+}
+
 function initProfanityFilter() {
   if (window.leoProfanity) {
-    window.leoProfanity.loadDictionary(); // loads full English list
-    // Add common bypass patterns
+    window.leoProfanity.loadDictionary();
     window.leoProfanity.add([
       'fck','fuk','fuq','sh1t','b1tch','b!tch','d1ck','a55','n1gga',
-      'f u c k','s h i t','wtaf','stfu'
+      'fag','fagg','shemale','tranny','retard','spaz','chink','kike',
+      'wetback','spic','coon','gook','raghead','towelhead',
+      'f u c k','s h i t','n i g g e r'
     ]);
   }
 }
-function isProfane(text) {
-  if (window.leoProfanity) return window.leoProfanity.check(text);
-  // Fallback if library fails to load
-  return /\b(fuck|shit|ass|bitch|cunt|dick|nigger|nigga|faggot)\b/i.test(text);
+
+function localProfanityCheck(text) {
+  const normalized = normalizeText(text);
+  if (window.leoProfanity) {
+    return window.leoProfanity.check(text) || window.leoProfanity.check(normalized);
+  }
+  return /\b(fuck|shit|ass|bitch|cunt|dick|nigger|nigga|faggot|fag|retard)\b/i.test(normalized);
+}
+
+async function isProfane(text) {
+  // Layer 1 + 2: fast local check first
+  if (localProfanityCheck(text)) return true;
+
+  // Layer 3: proxy through Supabase Edge Function — key stays server-side
+  try {
+    const res = await fetch(MODERATION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    if (!res.ok) return false; // fail open on errors
+    const data = await res.json();
+    return data.flagged === true;
+  } catch {
+    return false; // fail open on network errors
+  }
 }
 
 // ── Email validation ─────────────────────────────────────────
@@ -125,7 +156,7 @@ function showMarketClosed() {
     <div style="text-align:center;padding:1.5rem 0;">
       <p style="font-size:1.5rem;margin-bottom:0.5rem;">🏁</p>
       <p style="font-weight:700;color:var(--navy);margin-bottom:0.25rem;">Market Closed</p>
-      <p style="font-size:0.82rem;color:var(--text3);">The election has concluded. Results have been sent to all winners.</p>
+      <p style="font-size:0.82rem;color:var(--text3);">The election has concluded. Payout emails have been sent to all participants.</p>
     </div>
   `;
 }
@@ -762,9 +793,18 @@ async function submitVoice() {
   const btn   = document.getElementById('voice-submit');
   const cat   = document.getElementById('voice-cat').value;
   if (!text) { voiceTextarea.focus(); return; }
-  if (isProfane(text)) { errEl.textContent = '⚠ Please keep messages respectful.'; errEl.classList.add('show'); return; }
+
+  btn.disabled = true; btn.textContent = 'Checking...';
+
+  const flagged = await isProfane(text);
+  if (flagged) {
+    errEl.textContent = '⚠ Please keep messages respectful.';
+    errEl.classList.add('show');
+    btn.disabled = false; btn.textContent = 'Submit Anonymously';
+    return;
+  }
   errEl.classList.remove('show');
-  btn.disabled = true; btn.textContent = 'Submitting...';
+  btn.textContent = 'Submitting...';
   const { error } = await sb.from('voice_messages').insert([{ text, category: cat }]);
   if (error) { errEl.textContent = '⚠ Something went wrong.'; errEl.classList.add('show'); }
   else { voiceTextarea.value = ''; charLeft.textContent = '280'; showToast('Message posted! 📣'); }
