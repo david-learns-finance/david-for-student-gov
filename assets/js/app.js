@@ -1,348 +1,659 @@
-<!DOCTYPE HTML>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <meta name="theme-color" content="#0f1f3d" />
-  <meta name="description" content="David Tay for LPCSG Director of Finances — Spring 2026 General Election" />
-  <title>David Tay · LPCSG Director of Finances</title>
-  <link rel="stylesheet" href="assets/css/style.css" />
-</head>
-<body>
+/**
+ * app.js — David Tay for LPCSG Campaign Site
+ */
 
-<div id="app">
+const SUPABASE_URL      = 'https://zmcmttvfigrbfmopehsy.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InptY210dHZmaWdyYmZtb3BlaHN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NTU1NTAsImV4cCI6MjA4OTUzMTU1MH0.uRUFXySs5UHxUT0HDzS5EqcgEnDXbc6dh9R0u4ib3pg';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  <!-- ══════════════════════════════════════════
-       BIO PAGE (first tab)
-  ══════════════════════════════════════════ -->
-  <div class="page active" id="page-bio">
+// ── Candidates config ─────────────────────────────────────────
+// Add/remove candidates here. market_id must match a value in predictions.market_id
+const CANDIDATES = [
+  { market_id: 'david_dof',  name: 'David Tay',          role: 'Director of Finances', isDavid: true },
+  { market_id: 'candidate2', name: 'Candidate 2',         role: 'Position TBD',         isDavid: false },
+  { market_id: 'candidate3', name: 'Candidate 3',         role: 'Position TBD',         isDavid: false },
+];
 
-    <div class="page-header">
-      <p class="eyebrow">LPCSG · Spring 2026</p>
-      <h1>Meet<br><span>David</span></h1>
-    </div>
+// ── Profanity filter ─────────────────────────────────────────
+const BLOCKED = [
+  'fuck','fck','f u c k','f*ck','fuk','fuq','sh1t','shit','ass','bitch','b1tch',
+  'b!tch','cunt','dick','d1ck','cock','pussy','nigger','nigga','n1gga','faggot',
+  'fag','retard','whore','slut','bastard','crap','piss','asshole','motherfucker',
+  'bullshit','jackass','wtf'
+];
+const profRE = new RegExp('(' + BLOCKED.map(w => w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|') + ')','i');
 
-    <p class="bio-name">David <span>Tay</span></p>
-    <p class="bio-role">Candidate · Director of Finances</p>
+// ── Email validation ─────────────────────────────────────────
+const VALID_DOMAIN = '@zonemail.clpccd.edu';
+function isValidEmail(e) { return e.trim().toLowerCase().endsWith(VALID_DOMAIN); }
 
-    <div class="bio-slideshow">
-      <div class="bio-slides" id="bio-slides">
-        <div class="bio-slide active"><img src="images/slideshow/slide1.jpg"  alt="Campaign photo 1" /></div>
-        <div class="bio-slide"><img src="images/slideshow/slide2.JPG" alt="Campaign photo 2" /></div>
-        <div class="bio-slide"><img src="images/slideshow/slide3.png" alt="Campaign photo 3" /></div>
-        <div class="bio-slide"><img src="images/slideshow/slide4.jpg"  alt="Campaign photo 4" /></div>
-        <div class="bio-slide"><img src="images/slideshow/slide5.JPG" alt="Campaign photo 5" /></div>
-        <div class="bio-slide"><img src="images/slideshow/slide6.PNG" alt="Campaign photo 6" /></div>
+// ── Toast ────────────────────────────────────────────────────
+function showToast(msg, duration = 3000) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+// ── LocalStorage ─────────────────────────────────────────────
+const LS_KEY = 'david_tay_user_v2';
+function getUser()   { try { return JSON.parse(localStorage.getItem(LS_KEY)); } catch { return null; } }
+function saveUser(u) { localStorage.setItem(LS_KEY, JSON.stringify(u)); }
+
+// ══════════════════════════════════════════════════════════════
+//  TAB NAVIGATION
+// ══════════════════════════════════════════════════════════════
+
+function switchTab(tab) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + tab).classList.add('active');
+  document.querySelector('[data-tab="' + tab + '"]').classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PREDICTION MARKET — MULTI-CANDIDATE
+// ══════════════════════════════════════════════════════════════
+
+// marketData[market_id] = { yes: n, no: n, yesCount: n, noCount: n }
+const marketData = {};
+
+async function initMarket() {
+  const user = getUser();
+  if (user && user.registered) {
+    showBetUI(user);
+    showReferralNotif(user);
+  }
+  await loadAllMarketData();
+  subscribeMarket();
+}
+
+async function loadAllMarketData() {
+  const { data, error } = await sb.from('predictions').select('market_id, side, tokens');
+  if (error || !data) return;
+
+  // Reset
+  CANDIDATES.forEach(c => { marketData[c.market_id] = { yes: 0, no: 0, yesCount: 0, noCount: 0 }; });
+
+  data.forEach(r => {
+    if (!marketData[r.market_id]) return;
+    if (r.side === 'yes') { marketData[r.market_id].yes += r.tokens; marketData[r.market_id].yesCount++; }
+    else                  { marketData[r.market_id].no  += r.tokens; marketData[r.market_id].noCount++;  }
+  });
+
+  renderAllMarkets();
+}
+
+function subscribeMarket() {
+  sb.channel('predictions_ch')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'predictions' }, payload => {
+      const r = payload.new;
+      if (!marketData[r.market_id]) marketData[r.market_id] = { yes: 0, no: 0, yesCount: 0, noCount: 0 };
+      if (r.side === 'yes') { marketData[r.market_id].yes += r.tokens; marketData[r.market_id].yesCount++; }
+      else                  { marketData[r.market_id].no  += r.tokens; marketData[r.market_id].noCount++;  }
+      renderAllMarkets();
+      // Also update price chart for David's market
+      if (r.market_id === 'david_dof') loadPriceChart();
+    })
+    .subscribe();
+}
+
+function renderAllMarkets() {
+  const container = document.getElementById('candidate-markets');
+  if (!container) return;
+  const user = getUser();
+
+  container.innerHTML = CANDIDATES.map(c => {
+    const d      = marketData[c.market_id] || { yes: 0, no: 0, yesCount: 0, noCount: 0 };
+    const total  = d.yes + d.no || 1;
+    const yesPct = Math.round(d.yes / total * 100);
+    const noPct  = 100 - yesPct;
+    const userBet = user?.bets?.[c.market_id];
+    const tokens  = user?.tokens || 0;
+
+    return `
+    <div class="candidate-market-card${c.isDavid ? ' is-david' : ''}" data-market="${c.market_id}">
+      <p class="cmc-name">${c.name}${c.isDavid ? ' 🌟' : ''}</p>
+      <p class="cmc-role">${c.role}</p>
+      <div class="cmc-odds">
+        <div class="cmc-odds-pill yes">YES ${yesPct}%</div>
+        <div class="cmc-odds-pill no">NO ${noPct}%</div>
       </div>
-      <button class="bio-slide-prev" id="bio-prev" aria-label="Previous">&#8249;</button>
-      <button class="bio-slide-next" id="bio-next" aria-label="Next">&#8250;</button>
-      <div class="bio-slide-dots" id="bio-dots"></div>
-    </div>
+      <div class="cmc-bar"><div class="cmc-bar-fill" style="width:${yesPct}%"></div></div>
+      <p style="font-size:0.67rem;color:var(--text3);margin-bottom:0.6rem;">${d.yesCount + d.noCount} total bet${d.yesCount + d.noCount !== 1 ? 's' : ''}</p>
 
-    <div class="stat-grid">
-      <div class="stat-item"><p class="stat-value">4</p><p class="stat-label">Associate Degrees</p></div>
-      <div class="stat-item"><p class="stat-value">SAF</p><p class="stat-label">Commissioned Officer</p></div>
-      <div class="stat-item"><p class="stat-value">Fall<br>'27</p><p class="stat-label">Transfer Target</p></div>
-      <div class="stat-item"><p class="stat-value">Econ<br>&amp; Fin</p><p class="stat-label">Academic Focus</p></div>
-    </div>
+      ${userBet ? `<p class="cmc-existing-bet">✓ Your bet: ${userBet.tokens} tokens on ${userBet.side.toUpperCase()}</p>` : ''}
 
-    <div class="bio-body">
-      <p>Hey! <strong>I'm David Tay</strong>, a freshman at Las Positas College pursuing four Associate degrees in <em>Economics, Mathematics, Business, and Communications</em>. I'm planning to transfer as a junior in Fall 2027.</p>
-      <p><em>Find me on campus — I'll be giving out gum packs for free (limited time &amp; stock).</em></p>
-      <p>Before LPC, I served as a <strong>commissioned officer in the Singapore Armed Forces</strong>, where I led teams, managed operational resources, and learned that effective leadership begins with accountability. That discipline is exactly what I want to bring to Student Government.</p>
-      <p>My academic path is built around finance and economics. From quantitative modeling to budget analysis, I have the foundation to be a skilled steward of student funds.</p>
-    </div>
-
-    <div class="gold-line"></div>
-
-    <a href="https://instagram.com/david4lpcfinance" target="_blank" rel="noopener" class="btn btn-gold" style="display:flex;">
-      Follow @david4lpcfinance on Instagram
-    </a>
-
-  </div><!-- /page-bio -->
-
-
-  <!-- ══════════════════════════════════════════
-       ENGAGE PAGE
-  ══════════════════════════════════════════ -->
-  <div class="page" id="page-engage">
-
-    <!-- Hero -->
-    <div class="engage-hero">
-      <p class="tag">LPCSG · Spring 2026 General Election</p>
-      <h2>Vote <em>David Tay</em><br>Director of Finances</h2>
-      <p>Transparency, accountability, and student-first budgeting for all 8,000 of us.</p>
-    </div>
-
-    <!-- Referral notification (shown on returning users who referred others) -->
-    <div id="referral-notif" style="display:none;" class="notif-banner"></div>
-
-    <!-- ── Prediction Market ── -->
-    <div class="card" id="market-card">
-      <p class="card-title">🎯 Prediction Market</p>
-
-      <!-- Register -->
-      <div id="market-register">
-        <p style="font-size:0.88rem;font-weight:700;color:var(--text);margin-bottom:0.5rem;">Who will win each race?</p>
-        <p style="font-size:0.8rem;color:var(--text2);line-height:1.5;margin-bottom:0.9rem;">
-          Register with your LPC campus email to receive <strong style="color:var(--gold2);">100 tokens</strong> and bet on any race.
-          <span style="color:var(--text3);font-size:0.73rem;display:block;margin-top:0.3rem;">Already registered? Re-enter your email on any device to restore your balance.</span>
-        </p>
-        <div class="field-wrap">
-          <label class="input-label" for="reg-email">Campus Email</label>
-          <input class="input-field" type="email" id="reg-email" placeholder="yourname@zonemail.clpccd.edu" autocomplete="email" />
-          <p class="err-text" id="reg-err">Please use your @zonemail.clpccd.edu email.</p>
-        </div>
-        <div class="field-wrap">
-          <label class="input-label" for="reg-name">Display Name <span style="font-size:0.63rem;text-transform:none;letter-spacing:0;font-weight:400;color:var(--text3);">(optional — for leaderboard)</span></label>
-          <input class="input-field" type="text" id="reg-name" placeholder="e.g. David T." maxlength="24" />
-        </div>
-        <button class="btn btn-gold" id="reg-btn">Claim My Tokens →</button>
-      </div>
-
-      <!-- Bet UI -->
-      <div id="market-bet" style="display:none;">
-        <!-- Token balance -->
-        <div class="user-status">
-          <div class="user-token-count"><span class="token-icon">🪙</span><span id="user-tokens">100</span> tokens</div>
-          <div id="user-bet-info" style="font-size:0.7rem;color:var(--text3);">Place your bets below</div>
-        </div>
-
-        <!-- Multi-candidate markets -->
-        <div class="candidate-markets" id="candidate-markets">
-          <!-- Rendered by JS -->
-        </div>
-      </div>
-    </div>
-
-    <!-- Price Chart -->
-    <div class="card">
-      <p class="card-title">📈 Director of Finances — YES Price History</p>
-      <p style="font-size:0.7rem;color:var(--text3);margin-bottom:0.65rem;">Live probability David wins — updates with every new bet.</p>
-      <canvas id="price-chart" height="150"></canvas>
-      <div style="display:flex;justify-content:space-between;margin-top:0.4rem;">
-        <span style="font-size:0.62rem;color:var(--text3);">Oldest</span>
-        <span style="font-size:0.62rem;color:var(--text3);">Latest</span>
-      </div>
-    </div>
-
-    <div class="gold-line"></div>
-
-    <!-- Voice Wall -->
-    <div class="card">
-      <p class="card-title">💬 Student Voice</p>
-      <p style="font-size:0.8rem;color:var(--text2);margin-bottom:0.75rem;line-height:1.5;">Anonymous. No name, no tracking. Share a thought, concern, or idea.</p>
-      <select class="voice-select" id="voice-cat">
-        <option value="budget">💰 Budget &amp; Spending</option>
-        <option value="clubs">🎓 Clubs</option>
-        <option value="events">🎉 Events</option>
-        <option value="campus">🏫 Campus Life</option>
-        <option value="other">💬 Other</option>
-      </select>
-      <textarea class="voice-textarea" id="voice-msg" placeholder="Share your thoughts... (Enter to submit · 280 chars max)" maxlength="280" rows="3"></textarea>
-      <div class="char-count"><span id="char-left">280</span> left</div>
-      <button class="btn btn-gold" id="voice-submit" style="margin-top:0.65rem;">Submit Anonymously</button>
-      <p class="err-text" id="voice-err"></p>
-    </div>
-
-    <div class="card" style="margin-top:-0.25rem;">
-      <p class="card-title">📣 What Students Are Saying</p>
-      <div class="msg-scroll">
-        <div class="msg-bubble-wrap" id="msg-wall">
-          <p class="wall-empty" id="wall-empty">No messages yet. Be the first!</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="gold-line"></div>
-
-    <!-- Instagram -->
-    <div class="card">
-      <p class="card-title">📸 @david4lpcfinance</p>
-      <div class="reel-carousel-wrap" id="reel-carousel-wrap">
-        <div class="reel-carousel" id="reel-carousel">
-          <div class="reel-slide">
-            <blockquote class="instagram-media" data-instgrm-captioned
-              data-instgrm-permalink="https://www.instagram.com/reel/DVtWaxWBXGg/"
-              data-instgrm-version="14"
-              style="background:#f4f5f7;border:1px solid rgba(15,31,61,0.1);border-radius:12px;margin:0;padding:0;width:100%;min-width:0;">
-              <div style="padding:1rem;text-align:center;">
-                <a href="https://www.instagram.com/reel/DVtWaxWBXGg/" target="_blank" rel="noopener" style="color:var(--navy);font-size:0.82rem;">📱 View Reel on Instagram →</a>
-              </div>
-            </blockquote>
+      ${user && tokens > 0 ? `
+        <div class="cmc-bet-row">
+          <div class="cmc-side-btn${userBet && userBet.side !== 'yes' ? '' : ''} ${userBet?.side === 'yes' ? 'selected yes' : ''}"
+               data-market="${c.market_id}" data-side="yes"
+               style="${userBet && userBet.side === 'no' ? 'opacity:0.3;pointer-events:none;' : ''}">
+            👍 YES
           </div>
-          <div class="reel-slide">
-            <blockquote class="instagram-media" data-instgrm-captioned
-              data-instgrm-permalink="https://www.instagram.com/reel/DWCMe-ph_WE/"
-              data-instgrm-version="14"
-              style="background:#f4f5f7;border:1px solid rgba(15,31,61,0.1);border-radius:12px;margin:0;padding:0;width:100%;min-width:0;">
-              <div style="padding:1rem;text-align:center;">
-                <a href="https://www.instagram.com/reel/DWCMe-ph_WE/" target="_blank" rel="noopener" style="color:var(--navy);font-size:0.82rem;">📱 View Reel on Instagram →</a>
-              </div>
-            </blockquote>
+          <div class="cmc-side-btn ${userBet?.side === 'no' ? 'selected no' : ''}"
+               data-market="${c.market_id}" data-side="no"
+               style="${userBet && userBet.side === 'yes' ? 'opacity:0.3;pointer-events:none;' : ''}">
+            👎 NO
           </div>
         </div>
-        <!-- Swipe zones on left/right edges to capture touch over iframe -->
-        <div class="reel-swipe-zone left"  id="reel-swipe-left"></div>
-        <div class="reel-swipe-zone right" id="reel-swipe-right"></div>
-        <div class="reel-dots" id="reel-dots"></div>
+        <div class="cmc-wager-row">
+          <input type="range" class="cmc-slider" data-market="${c.market_id}"
+                 min="1" max="${tokens}" step="1" value="${Math.min(10, tokens)}" />
+          <span class="cmc-wager-val" id="wager-val-${c.market_id}">${Math.min(10, tokens)}</span>
+        </div>
+        <button class="cmc-bet-btn" data-market="${c.market_id}" disabled>Select YES or NO</button>
+        <p class="err-text" id="bet-err-${c.market_id}"></p>
+      ` : user && tokens === 0 ? `<p style="font-size:0.75rem;color:var(--text3);margin-top:0.5rem;">No tokens remaining.</p>` : ''}
+    </div>`;
+  }).join('');
+
+  // Attach slider listeners
+  container.querySelectorAll('.cmc-slider').forEach(slider => {
+    const mid = slider.dataset.market;
+    const valEl = document.getElementById('wager-val-' + mid);
+    slider.addEventListener('input', () => { if (valEl) valEl.textContent = slider.value; });
+  });
+}
+
+// Side selection (event delegation)
+document.addEventListener('click', function(e) {
+  const sideBtn = e.target.closest('.cmc-side-btn');
+  if (!sideBtn) return;
+  const mid  = sideBtn.dataset.market;
+  const side = sideBtn.dataset.side;
+  const card = document.querySelector(`.candidate-market-card[data-market="${mid}"]`);
+  if (!card) return;
+
+  card.querySelectorAll('.cmc-side-btn').forEach(b => b.classList.remove('selected','yes','no'));
+  sideBtn.classList.add('selected', side);
+
+  const btn = card.querySelector('.cmc-bet-btn');
+  if (btn) { btn.disabled = false; btn.textContent = `Bet ${side.toUpperCase()} →`; }
+});
+
+// Place bet (event delegation)
+document.addEventListener('click', async function(e) {
+  const betBtn = e.target.closest('.cmc-bet-btn');
+  if (!betBtn || betBtn.disabled) return;
+
+  const mid    = betBtn.dataset.market;
+  const card   = document.querySelector(`.candidate-market-card[data-market="${mid}"]`);
+  const user   = getUser();
+  if (!user || !card) return;
+
+  const selectedBtn = card.querySelector('.cmc-side-btn.selected');
+  if (!selectedBtn) return;
+  const side   = selectedBtn.dataset.side;
+  const slider = card.querySelector('.cmc-slider');
+  const tokens = parseInt(slider?.value || 10);
+  const errEl  = document.getElementById('bet-err-' + mid);
+
+  betBtn.disabled = true; betBtn.textContent = 'Placing...';
+
+  const prevBet    = user.bets?.[mid];
+  const newTokens  = user.tokens - tokens;
+  const newBetToks = (prevBet?.tokens || 0) + tokens;
+
+  const { error: updateErr } = await sb
+    .from('market_users')
+    .update({ tokens: newTokens })
+    .eq('email', user.email);
+
+  if (updateErr) {
+    if (errEl) { errEl.textContent = 'Something went wrong.'; errEl.classList.add('show'); }
+    betBtn.disabled = false; betBtn.textContent = 'Try Again';
+    return;
+  }
+
+  await sb.from('predictions').insert([{ market_id: mid, side, tokens, email: user.email }]);
+
+  // Update market_users bet columns only for David's market (for winner email)
+  if (mid === 'david_dof') {
+    await sb.from('market_users')
+      .update({ bet_side: side, bet_tokens: newBetToks })
+      .eq('email', user.email);
+  }
+
+  if (!user.bets) user.bets = {};
+  user.bets[mid] = { side, tokens: newBetToks };
+  user.tokens    = newTokens;
+  saveUser(user);
+
+  document.getElementById('user-tokens').textContent = newTokens;
+  showToast('Bet placed on ' + side.toUpperCase() + '! 🎯');
+  if (errEl) errEl.classList.remove('show');
+
+  renderAllMarkets();
+});
+
+// ── Show bet UI ───────────────────────────────────────────────
+function showBetUI(user) {
+  document.getElementById('market-register').style.display = 'none';
+  document.getElementById('market-bet').style.display      = 'block';
+  document.getElementById('user-tokens').textContent       = user.tokens;
+  renderAllMarkets();
+}
+
+// ── Referral notification ─────────────────────────────────────
+async function showReferralNotif(user) {
+  const notif = document.getElementById('referral-notif');
+  if (!notif) return;
+
+  const { data } = await sb
+    .from('market_users')
+    .select('email')
+    .eq('referred_by', user.email);
+
+  if (data && data.length > 0) {
+    const bonus = data.length * 20;
+    notif.style.display = 'block';
+    notif.innerHTML = `🎁 You've referred <strong>${data.length} student${data.length !== 1 ? 's' : ''}</strong> and earned <strong>+${bonus} bonus tokens</strong> from referrals!`;
+  }
+}
+
+// ── Registration ─────────────────────────────────────────────
+document.getElementById('reg-btn').addEventListener('click', async () => {
+  const email = document.getElementById('reg-email').value.trim().toLowerCase();
+  const name  = document.getElementById('reg-name').value.trim();
+  const errEl = document.getElementById('reg-err');
+  const btn   = document.getElementById('reg-btn');
+
+  if (!isValidEmail(email)) { errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  btn.disabled = true; btn.textContent = 'Registering...';
+
+  const { data: existing } = await sb
+    .from('market_users')
+    .select('id, tokens, bet_side, bet_tokens, display_name, referred_by')
+    .eq('email', email)
+    .single();
+
+  if (existing) {
+    // Also fetch all predictions for this user to rebuild bets map
+    const { data: preds } = await sb
+      .from('predictions')
+      .select('market_id, side, tokens')
+      .eq('email', email);
+
+    const bets = {};
+    if (preds) {
+      // Aggregate total tokens per market
+      preds.forEach(p => {
+        if (!bets[p.market_id]) bets[p.market_id] = { side: p.side, tokens: 0 };
+        bets[p.market_id].tokens += p.tokens;
+      });
+    }
+
+    const user = {
+      registered: true, email,
+      name: existing.display_name || name || null,
+      tokens: existing.tokens,
+      bets
+    };
+    saveUser(user);
+    showBetUI(user);
+    showReferralNotif(user);
+    showToast('Welcome back! 🎉');
+    btn.disabled = false; btn.textContent = 'Claim My Tokens →';
+    return;
+  }
+
+  btn.disabled = false; btn.textContent = 'Claim My Tokens →';
+  showReferralPopup(email, name);
+});
+
+// ── Referral popup ────────────────────────────────────────────
+const REFERRAL_BONUS = 20;
+
+function showReferralPopup(email, name) {
+  const popup = document.getElementById('referral-popup');
+  popup.style.display = 'flex';
+  popup.dataset.email = email;
+  popup.dataset.name  = name;
+  // Reset popup to initial state
+  document.getElementById('ref-no-step').style.display  = 'block';
+  document.getElementById('ref-yes-step').style.display = 'none';
+  document.getElementById('ref-input').value = '';
+  const errEl = document.getElementById('ref-err');
+  if (errEl) errEl.classList.remove('show');
+}
+
+document.addEventListener('click', async function(e) {
+  if (e.target.closest('#ref-yes-btn')) {
+    document.getElementById('ref-no-step').style.display  = 'none';
+    document.getElementById('ref-yes-step').style.display = 'block';
+  }
+
+  if (e.target.closest('#ref-no-btn')) {
+    const popup = document.getElementById('referral-popup');
+    await completeRegistration(popup.dataset.email, popup.dataset.name, null);
+    popup.style.display = 'none';
+  }
+
+  if (e.target.closest('#ref-submit-btn')) {
+    const popup       = document.getElementById('referral-popup');
+    const referrer    = document.getElementById('ref-input').value.trim().toLowerCase();
+    const errEl       = document.getElementById('ref-err');
+    const btn         = document.getElementById('ref-submit-btn');
+
+    if (!referrer) { errEl.textContent = 'Please enter the referrer\'s email.'; errEl.classList.add('show'); return; }
+    if (!isValidEmail(referrer)) { errEl.textContent = 'Must be a @zonemail.clpccd.edu email.'; errEl.classList.add('show'); return; }
+    if (referrer === popup.dataset.email) { errEl.textContent = 'You can\'t refer yourself!'; errEl.classList.add('show'); return; }
+    errEl.classList.remove('show');
+    btn.disabled = true; btn.textContent = 'Submitting...';
+
+    const { data: referrerData } = await sb
+      .from('market_users')
+      .select('id, tokens')
+      .eq('email', referrer)
+      .single();
+
+    if (!referrerData) {
+      errEl.textContent = 'That email isn\'t registered yet. Ask them to register first.';
+      errEl.classList.add('show');
+      btn.disabled = false; btn.textContent = 'Submit →';
+      return;
+    }
+
+    await sb.from('market_users')
+      .update({ tokens: referrerData.tokens + REFERRAL_BONUS })
+      .eq('email', referrer);
+
+    await completeRegistration(popup.dataset.email, popup.dataset.name, referrer, 100 + REFERRAL_BONUS);
+    popup.style.display = 'none';
+    showToast('Registered! You and ' + referrer.split('@')[0] + ' each got +' + REFERRAL_BONUS + ' tokens 🎁');
+    btn.disabled = false; btn.textContent = 'Submit →';
+  }
+});
+
+async function completeRegistration(email, name, referredBy, tokens = 100) {
+  const { error } = await sb.from('market_users').insert([{
+    email, display_name: name || null, tokens, referred_by: referredBy || null
+  }]);
+  if (error && error.code !== '23505') { showToast('Something went wrong. Try again.'); return; }
+  const user = { registered: true, email, name: name || null, tokens, bets: {} };
+  saveUser(user);
+  showBetUI(user);
+  if (!referredBy) showToast('100 tokens claimed! Place your bets 🪙');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PRICE PATH CHART — David's market only
+// ══════════════════════════════════════════════════════════════
+
+let priceChart = null;
+
+async function loadPriceChart() {
+  const { data, error } = await sb
+    .from('predictions')
+    .select('side, tokens, created_at')
+    .eq('market_id', 'david_dof')
+    .order('created_at', { ascending: true });
+
+  const canvas = document.getElementById('price-chart');
+  if (!canvas) return;
+  if (error || !data || data.length < 2) { renderPriceChart([50], ['Now']); return; }
+
+  let yesTotal = 0, noTotal = 0;
+  const points = [], labels = [];
+  data.forEach((bet, i) => {
+    if (bet.side === 'yes') yesTotal += bet.tokens;
+    else noTotal += bet.tokens;
+    points.push(Math.round(yesTotal / (yesTotal + noTotal) * 100));
+    const show = i === 0 || i === data.length - 1 || i % Math.max(1, Math.floor(data.length / 5)) === 0;
+    labels.push(show ? shortTime(bet.created_at) : '');
+  });
+  renderPriceChart(points, labels);
+}
+
+function renderPriceChart(points, labels) {
+  const canvas = document.getElementById('price-chart');
+  if (!canvas) return;
+  const last      = points[points.length - 1];
+  const color     = last >= 50 ? '#16a34a' : '#dc2626';
+  const fillColor = last >= 50 ? 'rgba(22,163,74,0.07)' : 'rgba(220,38,38,0.06)';
+  if (priceChart) priceChart.destroy();
+  priceChart = new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets: [{ data: points, borderColor: color, backgroundColor: fillColor,
+      borderWidth: 2, pointRadius: 0, pointHoverRadius: 5,
+      pointHoverBackgroundColor: color, tension: 0.35, fill: true }]},
+    options: {
+      responsive: true, animation: { duration: 350 },
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#8896a8', font: { size: 9 }, maxRotation: 0 }},
+        y: { min: 0, max: 100, grid: { color: 'rgba(15,31,61,0.06)' },
+          ticks: { color: '#8896a8', font: { size: 9 }, callback: v => v + '%', stepSize: 25 }}
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: '#0f1f3d', borderColor: 'rgba(212,160,23,0.3)', borderWidth: 1,
+          titleColor: 'rgba(255,255,255,0.55)', bodyColor: '#fff', bodyFont: { weight: 'bold', size: 13 },
+          callbacks: { title: () => 'YES probability', label: ctx => ' ' + ctx.parsed.y + '%' }}
+      }
+    }
+  });
+}
+
+function subscribePriceChart() {
+  // Chart updates via subscribeMarket payload now
+}
+
+function shortTime(iso) {
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  VOICE WALL
+// ══════════════════════════════════════════════════════════════
+
+const CATEGORY_LABELS = {
+  budget: '💰 Budget', clubs: '🎓 Clubs',
+  events: '🎉 Events', campus: '🏫 Campus', other: '💬 Other'
+};
+
+async function loadVoiceWall() {
+  const { data, error } = await sb
+    .from('voice_messages')
+    .select('text, category, created_at')
+    .order('created_at', { ascending: true })
+    .limit(50);
+
+  const wall  = document.getElementById('msg-wall');
+  const empty = document.getElementById('wall-empty');
+  if (error || !data || data.length === 0) { empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  wall.innerHTML = data.map(m => `
+    <div class="msg-item">
+      <div class="msg-meta">
+        <span class="msg-cat">${CATEGORY_LABELS[m.category] || '💬 Other'}</span>
+        <span>${timeAgo(m.created_at)}</span>
       </div>
-      <a href="https://instagram.com/david4lpcfinance" target="_blank" rel="noopener"
-        style="display:block;text-align:center;font-size:0.76rem;color:var(--text3);margin-top:0.65rem;">
-        Follow @david4lpcfinance for more
-      </a>
+      <div class="msg-text">${escapeHtml(m.text)}</div>
     </div>
+  `).join('');
+  const scroll = wall.closest('.msg-scroll');
+  if (scroll) scroll.scrollTop = scroll.scrollHeight;
+}
 
-  </div><!-- /page-engage -->
+function subscribeVoiceWall() {
+  sb.channel('voice_ch')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'voice_messages' }, payload => {
+      const m     = payload.new;
+      const empty = document.getElementById('wall-empty');
+      const wall  = document.getElementById('msg-wall');
+      if (empty) empty.style.display = 'none';
+      const div = document.createElement('div');
+      div.className = 'msg-item';
+      div.style.animation = 'fadeIn 0.28s ease';
+      div.innerHTML = `
+        <div class="msg-meta">
+          <span class="msg-cat">${CATEGORY_LABELS[m.category] || '💬 Other'}</span>
+          <span>just now</span>
+        </div>
+        <div class="msg-text">${escapeHtml(m.text)}</div>
+      `;
+      wall.appendChild(div);
+      const scroll = wall.closest('.msg-scroll');
+      if (scroll) scroll.scrollTop = scroll.scrollHeight;
+    }).subscribe();
+}
 
+const voiceTextarea = document.getElementById('voice-msg');
+const charLeft      = document.getElementById('char-left');
+voiceTextarea.addEventListener('input', () => { charLeft.textContent = 280 - voiceTextarea.value.length; });
+voiceTextarea.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitVoice(); } });
+document.getElementById('voice-submit').addEventListener('click', submitVoice);
 
-  <!-- ══════════════════════════════════════════
-       ISSUES PAGE
-  ══════════════════════════════════════════ -->
-  <div class="page" id="page-issues">
-    <div class="page-header">
-      <p class="eyebrow">The Problems</p>
-      <h1>Issues in<br><span>SG</span></h1>
-    </div>
-    <p style="font-size:0.87rem;color:var(--text2);margin-bottom:1.25rem;line-height:1.65;"><strong style="color:var(--text);">Before running, I listened.</strong> Three critical financial issues kept coming up.</p>
+async function submitVoice() {
+  const text  = voiceTextarea.value.trim();
+  const errEl = document.getElementById('voice-err');
+  const btn   = document.getElementById('voice-submit');
+  const cat   = document.getElementById('voice-cat').value;
+  if (!text) { voiceTextarea.focus(); return; }
+  if (profRE.test(text)) { errEl.textContent = '⚠ Please keep messages respectful.'; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  btn.disabled = true; btn.textContent = 'Submitting...';
+  const { error } = await sb.from('voice_messages').insert([{ text, category: cat }]);
+  if (error) { errEl.textContent = '⚠ Something went wrong.'; errEl.classList.add('show'); }
+  else { voiceTextarea.value = ''; charLeft.textContent = '280'; showToast('Message posted! 📣'); }
+  btn.disabled = false; btn.textContent = 'Submit Anonymously';
+}
 
-    <div class="issue-item">
-      <p class="issue-num">01</p>
-      <p class="issue-title">Lack of Budget Transparency</p>
-      <p class="issue-sub">Students fund this government through fees, but most have no idea where that money goes.</p>
-      <div class="quote-block">
-        <p class="quote">"...tf? 136k?"</p>
-        <p>Yeah, it is — according to the <a href="https://www.laspositascollege.edu/lpcsg/4.30.2025.Senate.Meeting.Agenda1.pdf" target="_blank" rel="noopener">April 30, 2025 Senate Meeting Agenda</a>. This has been a recurring issue since 2023, and it ends with me.</p>
-      </div>
-      <a href="https://lpcexpressnews.com/editorial-student-government-lacks-transparency-about-budget/" target="_blank" rel="noopener" class="article-chip">
-        <span class="article-chip-icon">📰</span>
-        <span class="article-chip-text"><strong>Editorial: Student government lacks transparency about budget</strong>The Express</span>
-      </a>
-    </div>
-    <div class="gold-line"></div>
-    <div class="issue-item">
-      <p class="issue-num">02</p>
-      <p class="issue-title">Club Funding Delays</p>
-      <p class="issue-sub">Clubs experience chronic delays receiving approved funding, forcing cancelled events and out-of-pocket costs.</p>
-      <div class="quote-block">
-        <p class="quote">"Oh, I'm planning on transferring to Berkeley or LA..."</p>
-        <p>Around <strong>60% of us intend to transfer</strong>, and clubs can be a huge boost to our applications. When they can't operate, everyone loses.</p>
-      </div>
-      <a href="https://lpcexpressnews.com/lpcsg-stalls-club-funding-with-communication-delays/" target="_blank" rel="noopener" class="article-chip">
-        <span class="article-chip-icon">📰</span>
-        <span class="article-chip-text"><strong>LPCSG stalls club funding with communication delays</strong>The Express</span>
-      </a>
-    </div>
-    <div class="gold-line"></div>
-    <div class="issue-item">
-      <p class="issue-num">03</p>
-      <p class="issue-title">Low Student Awareness &amp; Engagement</p>
-      <p class="issue-sub">Just because LPC is a commuter school doesn't mean it has to feel like one.</p>
-      <div class="quote-block">
-        <p class="quote">"Bro, I only drive here cuz attendance is graded"</p>
-        <p>Last year, <strong>less than 12%</strong> of the student body voted. But this campus belongs to all 8,000 of us.</p>
-      </div>
-    </div>
-  </div><!-- /page-issues -->
+// ══════════════════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════════════════
 
+function escapeHtml(str) { const d = document.createElement('div'); d.appendChild(document.createTextNode(str)); return d.innerHTML; }
+function timeAgo(iso) {
+  const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (diff < 60)    return 'just now';
+  if (diff < 3600)  return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return Math.floor(diff / 86400) + 'd ago';
+}
 
-  <!-- ══════════════════════════════════════════
-       VISION PAGE
-  ══════════════════════════════════════════ -->
-  <div class="page" id="page-vision">
-    <div class="page-header">
-      <p class="eyebrow">The Plan</p>
-      <h1>My<br><span>Vision</span></h1>
-    </div>
-    <p style="font-size:0.87rem;color:var(--text2);margin-bottom:1.25rem;line-height:1.65;"><strong style="color:var(--text);">Policy without creativity is just process.</strong> Here's what I'll do.</p>
+// ══════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════
 
-    <p class="section-label">Core Commitments</p>
-    <div class="vision-item">
-      <p class="vision-title">01 — Radical Budget Transparency</p>
-      <p class="vision-body">Plain-English budget summaries every semester. A public spending dashboard any student can access.</p>
-      <ul class="vision-bullets">
-        <li>Semester budget summaries in accessible language</li>
-        <li>Online spending tracker updated monthly</li>
-        <li>Financial reports at open student town halls</li>
-        <li>All agendas and minutes searchable online</li>
-      </ul>
-    </div>
-    <div class="vision-item">
-      <p class="vision-title">02 — Fix Club Funding</p>
-      <p class="vision-body">Streamline reimbursements. Set clear timelines. Build a status tracker so clubs know where their request stands.</p>
-      <ul class="vision-bullets">
-        <li>Map and document the current process</li>
-        <li>Propose maximum processing time standards</li>
-        <li>Simple status tracker for all requests</li>
-        <li>Monthly office hours for club treasurers</li>
-      </ul>
-    </div>
-    <div class="vision-item">
-      <p class="vision-title">03 — Student Voice in Every Budget</p>
-      <p class="vision-body">No major financial decision without students having a chance to weigh in — before the vote, not after.</p>
-      <ul class="vision-bullets">
-        <li>Pre-budget feedback sessions each semester</li>
-        <li>Anonymous suggestion channel on this site</li>
-        <li>Student feedback summaries in all proposals</li>
-      </ul>
-    </div>
+document.addEventListener('DOMContentLoaded', async () => {
+  await initMarket();
+  await loadPriceChart();
+  await loadVoiceWall();
+  subscribeVoiceWall();
+  setInterval(loadVoiceWall, 60000);
+});
 
-    <div class="gold-line"></div>
-    <p class="section-label">Ideas in Action</p>
-    <div class="vision-item">
-      <p class="vision-title">🔬 Clubs as Problem-Solvers</p>
-      <p class="vision-body">Introduce real campus case studies into club projects. Clubs that solve genuine problems earn recognition, awards, and verified volunteer hours.</p>
-    </div>
-    <div class="vision-item">
-      <p class="vision-title">📊 Data-Driven Student Government</p>
-      <p class="vision-body">Partner with Data Science and Journalism clubs to run semesterly surveys. Students get research experience; Student Government gets the data it needs to spend wisely.</p>
-    </div>
-    <div class="vision-item">
-      <p class="vision-title">💡 Club Fundraising that Meets Real Needs</p>
-      <p class="vision-body">Match genuine student needs to clubs that can meet them through fundraising.</p>
-      <ul class="vision-bullets">
-        <li>📸 Film/Photography Club: LinkedIn headshots as a fundraiser</li>
-        <li>✂️ Art &amp; Design Club: suit tailoring for interview prep</li>
-        <li>👑 Clash Royale Club: it's gonna happen someday ig...</li>
-      </ul>
-    </div>
+// ══════════════════════════════════════════════════════════════
+//  BIO SLIDESHOW
+// ══════════════════════════════════════════════════════════════
 
-    <div class="gold-line"></div>
-    <div style="text-align:center;padding:0.25rem 0 0.75rem;">
-      <p style="font-size:1rem;font-weight:700;color:var(--navy);margin-bottom:0.25rem;">Ready to vote?</p>
-      <p style="font-size:0.8rem;color:var(--text3);margin-bottom:0.85rem;">Spring 2026 General Election</p>
-      <button class="btn btn-gold" onclick="switchTab('engage')" style="max-width:220px;margin:0 auto;">Go to Engage →</button>
-    </div>
-  </div><!-- /page-vision -->
+function initBioSlideshow() {
+  const slides   = Array.from(document.querySelectorAll('.bio-slide'));
+  const dotsWrap = document.getElementById('bio-dots');
+  const prevBtn  = document.getElementById('bio-prev');
+  const nextBtn  = document.getElementById('bio-next');
+  if (!slides.length) return;
 
-</div><!-- /app -->
+  let current = 0, timer = null;
+  const DELAY = 4000;
 
-<!-- ── Referral Popup ── -->
-<div id="referral-popup" style="display:none;position:fixed;inset:0;background:rgba(15,31,61,0.55);z-index:300;align-items:center;justify-content:center;padding:1rem;">
-  <div class="referral-popup-inner">
-    <h3>🎁 Referral Bonus</h3>
-    <p>Were you referred by another LPC student? You'll both receive <strong>+20 bonus tokens</strong>.</p>
-    <div id="ref-no-step">
-      <button id="ref-yes-btn" class="btn btn-gold" style="margin-bottom:0.55rem;">Yes, I was referred</button>
-      <button id="ref-no-btn" class="btn btn-outline">No thanks, start with 100</button>
-    </div>
-    <div id="ref-yes-step" style="display:none;">
-      <div class="field-wrap">
-        <label class="input-label" for="ref-input">Referrer's Campus Email</label>
-        <input class="input-field" type="email" id="ref-input" placeholder="theirname@zonemail.clpccd.edu" />
-        <p class="err-text" id="ref-err"></p>
-      </div>
-      <button id="ref-submit-btn" class="btn btn-gold">Submit →</button>
-    </div>
-  </div>
-</div>
+  slides.forEach((_, i) => {
+    const dot = document.createElement('button');
+    dot.className = 'bio-dot' + (i === 0 ? ' active' : '');
+    dot.setAttribute('aria-label', 'Slide ' + (i + 1));
+    dot.addEventListener('click', () => goTo(i));
+    dotsWrap.appendChild(dot);
+  });
 
-<!-- Toast -->
-<div class="toast" id="toast"></div>
+  function dots() { return Array.from(dotsWrap.querySelectorAll('.bio-dot')); }
+  function goTo(n) {
+    slides[current].classList.remove('active'); dots()[current]?.classList.remove('active');
+    current = (n + slides.length) % slides.length;
+    slides[current].classList.add('active'); dots()[current]?.classList.add('active');
+    resetTimer();
+  }
+  function resetTimer() { clearInterval(timer); timer = setInterval(() => goTo(current + 1), DELAY); }
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-<script async src="https://www.instagram.com/embed.js"></script>
-<script src="assets/js/app.js"></script>
-</body>
-</html>
+  prevBtn?.addEventListener('click', () => goTo(current - 1));
+  nextBtn?.addEventListener('click', () => goTo(current + 1));
+
+  const wrap = document.querySelector('.bio-slideshow');
+  let tx = 0;
+  wrap.addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive: true });
+  wrap.addEventListener('touchend',   e => {
+    const dx = e.changedTouches[0].clientX - tx;
+    if (Math.abs(dx) > 40) dx < 0 ? goTo(current + 1) : goTo(current - 1);
+  }, { passive: true });
+
+  resetTimer();
+}
+
+document.addEventListener('DOMContentLoaded', initBioSlideshow);
+
+// ══════════════════════════════════════════════════════════════
+//  INSTAGRAM REEL CAROUSEL
+// ══════════════════════════════════════════════════════════════
+
+function initReelCarousel() {
+  const carousel = document.getElementById('reel-carousel');
+  const dotsWrap = document.getElementById('reel-dots');
+  if (!carousel) return;
+
+  const slides = Array.from(carousel.querySelectorAll('.reel-slide'));
+  if (slides.length <= 1) return;
+
+  let current = 0;
+
+  slides.forEach((_, i) => {
+    const dot = document.createElement('button');
+    dot.className = 'reel-dot' + (i === 0 ? ' active' : '');
+    dot.setAttribute('aria-label', 'Reel ' + (i + 1));
+    dot.addEventListener('click', () => goTo(i));
+    dotsWrap.appendChild(dot);
+  });
+
+  function dots() { return Array.from(dotsWrap.querySelectorAll('.reel-dot')); }
+  function goTo(n) {
+    current = (n + slides.length) % slides.length;
+    carousel.style.transform = `translateX(-${current * 100}%)`;
+    dots().forEach((d, i) => d.classList.toggle('active', i === current));
+  }
+
+  // Swipe zones (left/right edge overlays that capture touch over the iframe)
+  const leftZone  = document.getElementById('reel-swipe-left');
+  const rightZone = document.getElementById('reel-swipe-right');
+  leftZone?.addEventListener('click',  () => goTo(current - 1));
+  rightZone?.addEventListener('click', () => goTo(current + 1));
+
+  // Touch swipe on the whole wrap — only horizontal
+  const wrap = document.getElementById('reel-carousel-wrap');
+  let tx = 0, ty = 0;
+  wrap.addEventListener('touchstart', e => {
+    tx = e.touches[0].clientX;
+    ty = e.touches[0].clientY;
+  }, { passive: true });
+  wrap.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - tx;
+    const dy = e.changedTouches[0].clientY - ty;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 35) {
+      dx < 0 ? goTo(current + 1) : goTo(current - 1);
+    }
+  }, { passive: true });
+
+  // Mouse drag
+  let mx = 0, dragging = false;
+  wrap.addEventListener('mousedown', e => { mx = e.clientX; dragging = true; });
+  wrap.addEventListener('mouseup', e => {
+    if (!dragging) return; dragging = false;
+    const dx = e.clientX - mx;
+    if (Math.abs(dx) > 35) dx < 0 ? goTo(current + 1) : goTo(current - 1);
+  });
+  wrap.addEventListener('mouseleave', () => { dragging = false; });
+}
+
+document.addEventListener('DOMContentLoaded', initReelCarousel);
