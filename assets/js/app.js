@@ -200,7 +200,7 @@ function renderAllMarkets() {
             return `
             <div class="candidate-market-card${c.isDavid ? ' is-david' : ''}" data-market="${c.market_id}">
               <p class="cmc-name">${c.name}${c.isDavid ? ' 🌟' : ''}</p>
-              <p class="cmc-role">Director of Finances</p>
+              <p class="cmc-role">Director of Finance</p>
               <div class="cmc-odds">
                 <div class="cmc-odds-pill yes">YES ${yesPct}%</div>
                 <div class="cmc-odds-pill no">NO ${noPct}%</div>
