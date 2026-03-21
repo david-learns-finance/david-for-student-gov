@@ -112,6 +112,7 @@ async function initMarket() {
 
   await loadAllMarketData();
   subscribeMarket();
+  subscribeMarketStatus();
 }
 
 function showMarketClosed() {
@@ -155,7 +156,19 @@ function subscribeMarket() {
     .subscribe();
 }
 
-function renderAllMarkets() {
+function subscribeMarketStatus() {
+  sb.channel('market_status_ch')
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'app_settings',
+      filter: 'key=eq.market_status'
+    }, payload => {
+      if (payload.new.value === 'closed') {
+        marketClosed = true;
+        showMarketClosed();
+      }
+    })
+    .subscribe();
+}
   const container = document.getElementById('candidate-markets');
   if (!container) return;
   const user = getUser();
