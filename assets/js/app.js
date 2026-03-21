@@ -29,14 +29,23 @@ const CHART_COLORS = [
 ];
 const CHART_GREY = 'rgba(150,160,175,0.5)';
 
-// ── Profanity filter ─────────────────────────────────────────
-const BLOCKED = [
-  'fuck','fck','f u c k','f*ck','fuk','fuq','sh1t','shit','ass','bitch','b1tch',
-  'b!tch','cunt','dick','d1ck','cock','pussy','nigger','nigga','n1gga','faggot',
-  'fag','retard','whore','slut','bastard','crap','piss','asshole','motherfucker',
-  'bullshit','jackass','wtf'
-];
-const profRE = new RegExp('(' + BLOCKED.map(w => w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|') + ')','i');
+// ── Profanity filter — uses leo-profanity library ────────────
+// Loads English list + extra bypass patterns on init
+function initProfanityFilter() {
+  if (window.leoProfanity) {
+    window.leoProfanity.loadDictionary(); // loads full English list
+    // Add common bypass patterns
+    window.leoProfanity.add([
+      'fck','fuk','fuq','sh1t','b1tch','b!tch','d1ck','a55','n1gga',
+      'f u c k','s h i t','wtaf','stfu'
+    ]);
+  }
+}
+function isProfane(text) {
+  if (window.leoProfanity) return window.leoProfanity.check(text);
+  // Fallback if library fails to load
+  return /\b(fuck|shit|ass|bitch|cunt|dick|nigger|nigga|faggot)\b/i.test(text);
+}
 
 // ── Email validation ─────────────────────────────────────────
 const VALID_DOMAIN = '@zonemail.clpccd.edu';
@@ -71,8 +80,10 @@ function switchTab(tab) {
 //  PREDICTION MARKET — MULTI-CANDIDATE
 // ══════════════════════════════════════════════════════════════
 
+// ── Market state ──────────────────────────────────────────────
 // marketData[market_id] = { yes: n, no: n, yesCount: n, noCount: n }
 const marketData = {};
+let cmcCurrentSlide = 0; // track carousel position across re-renders
 
 // ── Market status ─────────────────────────────────────────────
 let marketClosed = false;
@@ -138,8 +149,8 @@ function subscribeMarket() {
       if (r.side === 'yes') { marketData[r.market_id].yes += r.tokens; marketData[r.market_id].yesCount++; }
       else                  { marketData[r.market_id].no  += r.tokens; marketData[r.market_id].noCount++;  }
       renderAllMarkets();
-      // Also update price chart for David's market
-      if (r.market_id === 'david_tay') loadPriceChart();
+      // Full chart reload on any new bet so all candidate lines update live
+      loadPriceChart();
     })
     .subscribe();
 }
@@ -502,19 +513,27 @@ function initCandidateCarousel(totalSlides) {
   const dotsWrap = document.getElementById('cmc-dots');
   if (!carousel || totalSlides <= 1) return;
 
-  let current = 0;
+  // Restore position from before re-render
+  let current = Math.min(cmcCurrentSlide, totalSlides - 1);
 
   dotsWrap.innerHTML = '';
   for (let i = 0; i < totalSlides; i++) {
     const dot = document.createElement('button');
-    dot.className = 'cmc-dot' + (i === 0 ? ' active' : '');
+    dot.className = 'cmc-dot' + (i === current ? ' active' : '');
     dot.setAttribute('aria-label', 'Slide ' + (i + 1));
     dot.addEventListener('click', () => goTo(i));
     dotsWrap.appendChild(dot);
   }
 
+  // Apply restored position immediately without animation
+  carousel.style.transition = 'none';
+  carousel.style.transform = `translateX(-${current * 100}%)`;
+  setTimeout(() => { carousel.style.transition = ''; }, 50);
+
   function goTo(n) {
     current = (n + totalSlides) % totalSlides;
+    cmcCurrentSlide = current; // sync global tracker
+    carousel.style.transition = 'transform 0.38s ease';
     carousel.style.transform = `translateX(-${current * 100}%)`;
     dotsWrap.querySelectorAll('.cmc-dot').forEach((d, i) => d.classList.toggle('active', i === current));
   }
@@ -736,7 +755,7 @@ async function submitVoice() {
   const btn   = document.getElementById('voice-submit');
   const cat   = document.getElementById('voice-cat').value;
   if (!text) { voiceTextarea.focus(); return; }
-  if (profRE.test(text)) { errEl.textContent = '⚠ Please keep messages respectful.'; errEl.classList.add('show'); return; }
+  if (isProfane(text)) { errEl.textContent = '⚠ Please keep messages respectful.'; errEl.classList.add('show'); return; }
   errEl.classList.remove('show');
   btn.disabled = true; btn.textContent = 'Submitting...';
   const { error } = await sb.from('voice_messages').insert([{ text, category: cat }]);
@@ -763,6 +782,7 @@ function timeAgo(iso) {
 // ══════════════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', async () => {
+  initProfanityFilter();
   await initMarket();
   await loadPriceChart();
   await loadVoiceWall();
