@@ -796,6 +796,17 @@ function timeAgo(iso) {
 // ══════════════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // Tab bar — attach listeners here instead of inline onclick
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // Bio slideshow
+  initBioSlideshow();
+
+  // Instagram reel carousel
+  initReelCarousel();
+
   initProfanityFilter();
   await initMarket();
   await loadPriceChart();
@@ -848,8 +859,6 @@ function initBioSlideshow() {
 
   resetTimer();
 }
-
-document.addEventListener('DOMContentLoaded', initBioSlideshow);
 
 // ══════════════════════════════════════════════════════════════
 //  INSTAGRAM REEL CAROUSEL
@@ -911,5 +920,3 @@ function initReelCarousel() {
   });
   wrap.addEventListener('mouseleave', () => { dragging = false; });
 }
-
-document.addEventListener('DOMContentLoaded', initReelCarousel);
