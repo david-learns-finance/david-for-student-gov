@@ -70,7 +70,10 @@ async function isProfane(text) {
   try {
     const res = await fetch(MODERATION_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+      },
       body: JSON.stringify({ text })
     });
     if (!res.ok) return false; // fail open on errors
