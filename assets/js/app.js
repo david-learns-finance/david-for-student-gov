@@ -142,28 +142,55 @@ document.getElementById('reg-btn').addEventListener('click', async () => {
 
   const { data: existing } = await sb
     .from('market_users')
-    .select('id, tokens, bet_side, bet_tokens')
+    .select('id, tokens, bet_side, bet_tokens, display_name')
     .eq('email', email)
     .single();
 
   if (existing) {
+    // Returning user — restore exactly what Supabase has, never modify tokens
     const user = {
-      registered: true, email, name: name || null,
+      registered: true,
+      email,
+      name: existing.display_name || name || null,
       tokens: existing.tokens,
       bet: existing.bet_side ? { side: existing.bet_side, tokens: existing.bet_tokens } : null
     };
     saveUser(user);
+    setUserEmailHeader(email);
     showBetUI(user);
     showToast('Welcome back! 🎉');
     btn.disabled = false; btn.textContent = 'Claim My Tokens →';
     return;
   }
 
+  // Only reaches here for brand new emails never seen before
   const { error } = await sb.from('market_users').insert([{
     email, display_name: name || null, tokens: 100
   }]);
 
   if (error) {
+    // If unique constraint violated, treat as returning user and re-fetch
+    if (error.code === '23505') {
+      const { data: retry } = await sb
+        .from('market_users')
+        .select('id, tokens, bet_side, bet_tokens, display_name')
+        .eq('email', email)
+        .single();
+      if (retry) {
+        const user = {
+          registered: true, email,
+          name: retry.display_name || name || null,
+          tokens: retry.tokens,
+          bet: retry.bet_side ? { side: retry.bet_side, tokens: retry.bet_tokens } : null
+        };
+        saveUser(user);
+        setUserEmailHeader(email);
+        showBetUI(user);
+        showToast('Welcome back! 🎉');
+        btn.disabled = false; btn.textContent = 'Claim My Tokens →';
+        return;
+      }
+    }
     showToast('Something went wrong. Try again.');
     btn.disabled = false; btn.textContent = 'Claim My Tokens →';
     return;
