@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <meta name="theme-color" content="#0a0a0a" />
+  <meta name="theme-color" content="#0f1f3d" />
   <meta name="description" content="David Tay for LPCSG Director of Finances — Spring 2026 General Election" />
   <title>David Tay · LPCSG Director of Finances</title>
   <link rel="stylesheet" href="assets/css/style.css" />
@@ -13,190 +13,9 @@
 <div id="app">
 
   <!-- ══════════════════════════════════════════
-       ENGAGE PAGE
+       BIO PAGE (first tab)
   ══════════════════════════════════════════ -->
-  <div class="page active" id="page-engage">
-
-    <!-- Hero -->
-    <div class="engage-hero">
-      <p class="tag">LPCSG · Spring 2026 General Election</p>
-      <h2>Vote <em>David Tay</em><br>Director of Finances</h2>
-      <p>Transparency, accountability, and student-first budgeting for all 8,000 of us.</p>
-    </div>
-
-    <!-- ── Prediction Market ── -->
-    <div class="card" id="market-card">
-      <p class="card-title">🎯 Prediction Market</p>
-
-      <!-- Step 1: Register -->
-      <div id="market-register">
-        <p class="market-question">Will David Tay win the Director of Finances election?</p>
-        <p style="font-size:0.82rem;color:var(--white70);line-height:1.5;margin-bottom:0.9rem;">
-          Register with your LPC campus email to receive <strong style="color:var(--gold2);">100 tokens</strong> and place your bet. Results are bragging rights only.
-          <span style="color:var(--white40);font-size:0.75rem;display:block;margin-top:0.35rem;">Already registered? Re-enter your email on any device to restore your balance.</span>
-        </p>
-        <div class="field-wrap">
-          <label class="input-label" for="reg-email">Campus Email</label>
-          <input class="input-field" type="email" id="reg-email" placeholder="yourname@zonemail.clpccd.edu" autocomplete="email" />
-          <p class="err-text" id="reg-err">Please use your @zonemail.clpccd.edu email.</p>
-        </div>
-        <div class="field-wrap">
-          <label class="input-label" for="reg-name">Display Name <span style="color:var(--white40);font-size:0.65rem;text-transform:none;letter-spacing:0;">(optional — First Name + Last Initial for leaderboard)</span></label>
-          <input class="input-field" type="text" id="reg-name" placeholder="e.g. David T." maxlength="24" />
-        </div>
-        <button class="btn btn-gold" id="reg-btn">Claim My Tokens →</button>
-      </div>
-
-      <!-- Step 2: Place bet (shown after registration) -->
-      <div id="market-bet" style="display:none;">
-        <p class="market-question">Will David Tay win the Director of Finances election?</p>
-
-        <!-- Live odds -->
-        <div class="market-odds">
-          <div class="odds-side yes">
-            <p class="odds-label">YES</p>
-            <p class="odds-value" id="odds-yes">—</p>
-            <p class="odds-count" id="count-yes">— bets</p>
-          </div>
-          <div class="odds-side no">
-            <p class="odds-label">NO</p>
-            <p class="odds-value" id="odds-no">—</p>
-            <p class="odds-count" id="count-no">— bets</p>
-          </div>
-        </div>
-        <div class="market-bar-wrap">
-          <div class="market-bar"><div class="market-bar-fill" id="market-bar-fill" style="width:50%"></div></div>
-          <div class="market-bar-labels"><span>YES</span><span>NO</span></div>
-        </div>
-
-        <!-- User status -->
-        <div class="user-status">
-          <div class="user-token-count">
-            <span class="token-icon">🪙</span>
-            <span id="user-tokens">100</span> tokens
-          </div>
-          <div class="user-bet-info" id="user-bet-info">No bet placed yet</div>
-        </div>
-
-        <!-- Bet interface (hidden if already bet) -->
-        <div id="bet-interface">
-          <p class="section-label">Your bet</p>
-          <div class="bet-options">
-            <div class="bet-opt yes" data-side="yes" id="bet-yes">👍 YES</div>
-            <div class="bet-opt no"  data-side="no"  id="bet-no">👎 NO</div>
-          </div>
-          <div class="token-slider-wrap">
-            <p class="section-label">Tokens to wager: <span id="slider-val" style="color:var(--gold2);">50</span></p>
-            <input type="range" class="token-slider" id="token-slider" min="10" max="100" value="50" step="10" />
-            <div class="token-slider-labels"><span>10</span><span>100</span></div>
-          </div>
-          <button class="btn btn-gold" id="place-bet-btn" disabled>Select YES or NO first</button>
-          <p class="err-text" id="bet-err"></p>
-        </div>
-
-        <div id="bet-placed" style="display:none;">
-          <div class="card" style="background:var(--black);border-color:rgba(46,204,113,0.25);margin-bottom:0.75rem;">
-            <p style="font-size:0.85rem;color:var(--green);font-weight:700;">✓ Bet placed!</p>
-          </div>
-        </div>
-        <p id="bet-add-note" style="display:none;font-size:0.75rem;color:var(--white40);margin-bottom:0.75rem;">You can add more tokens to your existing bet on the same side.</p>
-      </div>
-    </div>
-
-    <!-- ── Price Path Chart ── -->
-    <div class="card" id="price-chart-card">
-      <p class="card-title">📈 YES Price History</p>
-      <p style="font-size:0.72rem;color:var(--white40);margin-bottom:0.75rem;">Live probability of David winning — updated with every new bet.</p>
-      <canvas id="price-chart" height="160"></canvas>
-      <div style="display:flex;justify-content:space-between;margin-top:0.5rem;">
-        <span style="font-size:0.65rem;color:var(--white40);">Oldest</span>
-        <span style="font-size:0.65rem;color:var(--white40);">Latest</span>
-      </div>
-    </div>
-
-    <div class="gold-line"></div>
-
-    <!-- ── Anonymous Voice Wall ── -->
-    <div class="card">
-      <p class="card-title">💬 Student Voice</p>
-      <p style="font-size:0.82rem;color:var(--white70);margin-bottom:0.9rem;line-height:1.5;">Anonymous. No name, no tracking. Share a thought, concern, or idea.</p>
-
-      <select class="voice-select" id="voice-cat">
-        <option value="budget">💰 Budget &amp; Spending</option>
-        <option value="clubs">🎓 Clubs</option>
-        <option value="events">🎉 Events</option>
-        <option value="campus">🏫 Campus Life</option>
-        <option value="other">💬 Other</option>
-      </select>
-      <textarea class="voice-textarea" id="voice-msg" placeholder="Enter to submit · Shift+Enter for new line · 280 chars max" maxlength="280" rows="3"></textarea>
-      <div class="char-count"><span id="char-left">280</span> left</div>
-      <button class="btn btn-outline" id="voice-submit" style="margin-top:0.75rem;">Submit Anonymously</button>
-      <p class="err-text" id="voice-err"></p>
-    </div>
-
-    <div class="card" style="margin-top:-0.25rem;">
-      <p class="card-title">📣 What Students Are Saying</p>
-      <div class="msg-scroll">
-        <div class="msg-bubble-wrap" id="msg-wall">
-          <p class="wall-empty" id="wall-empty">No messages yet. Be the first!</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="gold-line"></div>
-
-    <!-- ── Instagram Reels ── -->
-    <div class="card">
-      <p class="card-title">📸 @david4lpcfinance</p>
-
-      <div class="reel-carousel-wrap">
-        <div class="reel-carousel" id="reel-carousel">
-
-          <div class="reel-slide">
-            <blockquote
-              class="instagram-media"
-              data-instgrm-captioned
-              data-instgrm-permalink="https://www.instagram.com/reel/DVtWaxWBXGg/"
-              data-instgrm-version="14"
-              style="background:#1a1a1a;border:1px solid rgba(212,160,23,0.2);border-radius:12px;margin:0;padding:0;width:100%;min-width:0;">
-              <div style="padding:1rem;text-align:center;">
-                <a href="https://www.instagram.com/reel/DVtWaxWBXGg/" target="_blank" rel="noopener"
-                  style="color:var(--gold2);font-size:0.82rem;">📱 View Reel on Instagram →</a>
-              </div>
-            </blockquote>
-          </div>
-
-          <div class="reel-slide">
-            <blockquote
-              class="instagram-media"
-              data-instgrm-captioned
-              data-instgrm-permalink="https://www.instagram.com/reel/DWCMe-ph_WE/"
-              data-instgrm-version="14"
-              style="background:#1a1a1a;border:1px solid rgba(212,160,23,0.2);border-radius:12px;margin:0;padding:0;width:100%;min-width:0;">
-              <div style="padding:1rem;text-align:center;">
-                <a href="https://www.instagram.com/reel/DWCMe-ph_WE/" target="_blank" rel="noopener"
-                  style="color:var(--gold2);font-size:0.82rem;">📱 View Reel on Instagram →</a>
-              </div>
-            </blockquote>
-          </div>
-
-        </div>
-        <div class="reel-dots" id="reel-dots"></div>
-      </div>
-
-      <a href="https://instagram.com/david4lpcfinance" target="_blank" rel="noopener"
-        style="display:block;text-align:center;font-size:0.78rem;color:var(--white40);margin-top:0.75rem;">
-        Follow @david4lpcfinance for more
-      </a>
-    </div>
-
-  </div><!-- /page-engage -->
-
-
-  <!-- ══════════════════════════════════════════
-       BIO PAGE
-  ══════════════════════════════════════════ -->
-  <div class="page" id="page-bio">
+  <div class="page active" id="page-bio">
 
     <div class="page-header">
       <p class="eyebrow">LPCSG · Spring 2026</p>
@@ -208,10 +27,10 @@
 
     <div class="bio-slideshow">
       <div class="bio-slides" id="bio-slides">
-        <div class="bio-slide active"><img src="images/slideshow/slide1.jpg" alt="Campaign photo 1" /></div>
+        <div class="bio-slide active"><img src="images/slideshow/slide1.jpg"  alt="Campaign photo 1" /></div>
         <div class="bio-slide"><img src="images/slideshow/slide2.JPG" alt="Campaign photo 2" /></div>
         <div class="bio-slide"><img src="images/slideshow/slide3.png" alt="Campaign photo 3" /></div>
-        <div class="bio-slide"><img src="images/slideshow/slide4.jpg" alt="Campaign photo 4" /></div>
+        <div class="bio-slide"><img src="images/slideshow/slide4.jpg"  alt="Campaign photo 4" /></div>
         <div class="bio-slide"><img src="images/slideshow/slide5.JPG" alt="Campaign photo 5" /></div>
         <div class="bio-slide"><img src="images/slideshow/slide6.PNG" alt="Campaign photo 6" /></div>
       </div>
@@ -230,13 +49,13 @@
     <div class="bio-body">
       <p>Hey! <strong>I'm David Tay</strong>, a freshman at Las Positas College pursuing four Associate degrees in <em>Economics, Mathematics, Business, and Communications</em>. I'm planning to transfer as a junior in Fall 2027.</p>
       <p><em>Find me on campus — I'll be giving out gum packs for free (limited time &amp; stock).</em></p>
-      <p>Before LPC, I served as a <strong>commissioned officer in the Singapore Armed Forces</strong>, where I led teams, managed operational resources, and learned first-hand that effective leadership begins with accountability. That discipline is exactly what I want to bring to Student Government.</p>
-      <p>My academic path is built around finance and economics. From quantitative modeling to budget analysis, I have the foundation to be a skilled steward of student funds — and the drive to make that work visible to every student on campus.</p>
+      <p>Before LPC, I served as a <strong>commissioned officer in the Singapore Armed Forces</strong>, where I led teams, managed operational resources, and learned that effective leadership begins with accountability. That discipline is exactly what I want to bring to Student Government.</p>
+      <p>My academic path is built around finance and economics. From quantitative modeling to budget analysis, I have the foundation to be a skilled steward of student funds.</p>
     </div>
 
     <div class="gold-line"></div>
 
-    <a href="https://instagram.com/david4lpcfinance" target="_blank" rel="noopener" class="btn btn-outline" style="display:flex;">
+    <a href="https://instagram.com/david4lpcfinance" target="_blank" rel="noopener" class="btn btn-gold" style="display:flex;">
       Follow @david4lpcfinance on Instagram
     </a>
 
@@ -244,62 +63,186 @@
 
 
   <!-- ══════════════════════════════════════════
+       ENGAGE PAGE
+  ══════════════════════════════════════════ -->
+  <div class="page" id="page-engage">
+
+    <!-- Hero -->
+    <div class="engage-hero">
+      <p class="tag">LPCSG · Spring 2026 General Election</p>
+      <h2>Vote <em>David Tay</em><br>Director of Finances</h2>
+      <p>Transparency, accountability, and student-first budgeting for all 8,000 of us.</p>
+    </div>
+
+    <!-- Referral notification (shown on returning users who referred others) -->
+    <div id="referral-notif" style="display:none;" class="notif-banner"></div>
+
+    <!-- ── Prediction Market ── -->
+    <div class="card" id="market-card">
+      <p class="card-title">🎯 Prediction Market</p>
+
+      <!-- Register -->
+      <div id="market-register">
+        <p style="font-size:0.88rem;font-weight:700;color:var(--text);margin-bottom:0.5rem;">Who will win each race?</p>
+        <p style="font-size:0.8rem;color:var(--text2);line-height:1.5;margin-bottom:0.9rem;">
+          Register with your LPC campus email to receive <strong style="color:var(--gold2);">100 tokens</strong> and bet on any race.
+          <span style="color:var(--text3);font-size:0.73rem;display:block;margin-top:0.3rem;">Already registered? Re-enter your email on any device to restore your balance.</span>
+        </p>
+        <div class="field-wrap">
+          <label class="input-label" for="reg-email">Campus Email</label>
+          <input class="input-field" type="email" id="reg-email" placeholder="yourname@zonemail.clpccd.edu" autocomplete="email" />
+          <p class="err-text" id="reg-err">Please use your @zonemail.clpccd.edu email.</p>
+        </div>
+        <div class="field-wrap">
+          <label class="input-label" for="reg-name">Display Name <span style="font-size:0.63rem;text-transform:none;letter-spacing:0;font-weight:400;color:var(--text3);">(optional — for leaderboard)</span></label>
+          <input class="input-field" type="text" id="reg-name" placeholder="e.g. David T." maxlength="24" />
+        </div>
+        <button class="btn btn-gold" id="reg-btn">Claim My Tokens →</button>
+      </div>
+
+      <!-- Bet UI -->
+      <div id="market-bet" style="display:none;">
+        <!-- Token balance -->
+        <div class="user-status">
+          <div class="user-token-count"><span class="token-icon">🪙</span><span id="user-tokens">100</span> tokens</div>
+          <div id="user-bet-info" style="font-size:0.7rem;color:var(--text3);">Place your bets below</div>
+        </div>
+
+        <!-- Multi-candidate markets -->
+        <div class="candidate-markets" id="candidate-markets">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Price Chart -->
+    <div class="card">
+      <p class="card-title">📈 Director of Finances — YES Price History</p>
+      <p style="font-size:0.7rem;color:var(--text3);margin-bottom:0.65rem;">Live probability David wins — updates with every new bet.</p>
+      <canvas id="price-chart" height="150"></canvas>
+      <div style="display:flex;justify-content:space-between;margin-top:0.4rem;">
+        <span style="font-size:0.62rem;color:var(--text3);">Oldest</span>
+        <span style="font-size:0.62rem;color:var(--text3);">Latest</span>
+      </div>
+    </div>
+
+    <div class="gold-line"></div>
+
+    <!-- Voice Wall -->
+    <div class="card">
+      <p class="card-title">💬 Student Voice</p>
+      <p style="font-size:0.8rem;color:var(--text2);margin-bottom:0.75rem;line-height:1.5;">Anonymous. No name, no tracking. Share a thought, concern, or idea.</p>
+      <select class="voice-select" id="voice-cat">
+        <option value="budget">💰 Budget &amp; Spending</option>
+        <option value="clubs">🎓 Clubs</option>
+        <option value="events">🎉 Events</option>
+        <option value="campus">🏫 Campus Life</option>
+        <option value="other">💬 Other</option>
+      </select>
+      <textarea class="voice-textarea" id="voice-msg" placeholder="Share your thoughts... (Enter to submit · 280 chars max)" maxlength="280" rows="3"></textarea>
+      <div class="char-count"><span id="char-left">280</span> left</div>
+      <button class="btn btn-gold" id="voice-submit" style="margin-top:0.65rem;">Submit Anonymously</button>
+      <p class="err-text" id="voice-err"></p>
+    </div>
+
+    <div class="card" style="margin-top:-0.25rem;">
+      <p class="card-title">📣 What Students Are Saying</p>
+      <div class="msg-scroll">
+        <div class="msg-bubble-wrap" id="msg-wall">
+          <p class="wall-empty" id="wall-empty">No messages yet. Be the first!</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="gold-line"></div>
+
+    <!-- Instagram -->
+    <div class="card">
+      <p class="card-title">📸 @david4lpcfinance</p>
+      <div class="reel-carousel-wrap" id="reel-carousel-wrap">
+        <div class="reel-carousel" id="reel-carousel">
+          <div class="reel-slide">
+            <blockquote class="instagram-media" data-instgrm-captioned
+              data-instgrm-permalink="https://www.instagram.com/reel/DVtWaxWBXGg/"
+              data-instgrm-version="14"
+              style="background:#f4f5f7;border:1px solid rgba(15,31,61,0.1);border-radius:12px;margin:0;padding:0;width:100%;min-width:0;">
+              <div style="padding:1rem;text-align:center;">
+                <a href="https://www.instagram.com/reel/DVtWaxWBXGg/" target="_blank" rel="noopener" style="color:var(--navy);font-size:0.82rem;">📱 View Reel on Instagram →</a>
+              </div>
+            </blockquote>
+          </div>
+          <div class="reel-slide">
+            <blockquote class="instagram-media" data-instgrm-captioned
+              data-instgrm-permalink="https://www.instagram.com/reel/DWCMe-ph_WE/"
+              data-instgrm-version="14"
+              style="background:#f4f5f7;border:1px solid rgba(15,31,61,0.1);border-radius:12px;margin:0;padding:0;width:100%;min-width:0;">
+              <div style="padding:1rem;text-align:center;">
+                <a href="https://www.instagram.com/reel/DWCMe-ph_WE/" target="_blank" rel="noopener" style="color:var(--navy);font-size:0.82rem;">📱 View Reel on Instagram →</a>
+              </div>
+            </blockquote>
+          </div>
+        </div>
+        <!-- Swipe zones on left/right edges to capture touch over iframe -->
+        <div class="reel-swipe-zone left"  id="reel-swipe-left"></div>
+        <div class="reel-swipe-zone right" id="reel-swipe-right"></div>
+        <div class="reel-dots" id="reel-dots"></div>
+      </div>
+      <a href="https://instagram.com/david4lpcfinance" target="_blank" rel="noopener"
+        style="display:block;text-align:center;font-size:0.76rem;color:var(--text3);margin-top:0.65rem;">
+        Follow @david4lpcfinance for more
+      </a>
+    </div>
+
+  </div><!-- /page-engage -->
+
+
+  <!-- ══════════════════════════════════════════
        ISSUES PAGE
   ══════════════════════════════════════════ -->
   <div class="page" id="page-issues">
-
     <div class="page-header">
       <p class="eyebrow">The Problems</p>
       <h1>Issues in<br><span>SG</span></h1>
     </div>
+    <p style="font-size:0.87rem;color:var(--text2);margin-bottom:1.25rem;line-height:1.65;"><strong style="color:var(--text);">Before running, I listened.</strong> Three critical financial issues kept coming up.</p>
 
-    <p style="font-size:0.88rem;color:var(--white70);margin-bottom:1.5rem;line-height:1.6;"><strong style="color:var(--white);">Before running, I listened.</strong> I talked to students, club leaders, and faculty. Three critical financial issues kept coming up.</p>
-
-    <!-- Issue 01 -->
     <div class="issue-item">
       <p class="issue-num">01</p>
       <p class="issue-title">Lack of Budget Transparency</p>
       <p class="issue-sub">Students fund this government through fees, but most have no idea where that money goes.</p>
       <div class="quote-block">
         <p class="quote">"...tf? 136k?"</p>
-        <p>Yeah, it is — according to the <a href="https://www.laspositascollege.edu/lpcsg/4.30.2025.Senate.Meeting.Agenda1.pdf" target="_blank" rel="noopener" style="color:var(--gold2);">April 30, 2025 Senate Meeting Agenda</a>. This has been a recurring issue since 2023, and it ends with me.</p>
+        <p>Yeah, it is — according to the <a href="https://www.laspositascollege.edu/lpcsg/4.30.2025.Senate.Meeting.Agenda1.pdf" target="_blank" rel="noopener">April 30, 2025 Senate Meeting Agenda</a>. This has been a recurring issue since 2023, and it ends with me.</p>
       </div>
       <a href="https://lpcexpressnews.com/editorial-student-government-lacks-transparency-about-budget/" target="_blank" rel="noopener" class="article-chip">
         <span class="article-chip-icon">📰</span>
         <span class="article-chip-text"><strong>Editorial: Student government lacks transparency about budget</strong>The Express</span>
       </a>
     </div>
-
     <div class="gold-line"></div>
-
-    <!-- Issue 02 -->
     <div class="issue-item">
       <p class="issue-num">02</p>
       <p class="issue-title">Club Funding Delays</p>
-      <p class="issue-sub">Clubs experience chronic delays in receiving approved funding, forcing cancelled events and out-of-pocket costs.</p>
+      <p class="issue-sub">Clubs experience chronic delays receiving approved funding, forcing cancelled events and out-of-pocket costs.</p>
       <div class="quote-block">
         <p class="quote">"Oh, I'm planning on transferring to Berkeley or LA..."</p>
-        <p>Around <strong style="color:var(--gold2);">60% of us intend to transfer</strong>, and clubs can be a huge boost to our applications. When they can't operate, everyone loses.</p>
+        <p>Around <strong>60% of us intend to transfer</strong>, and clubs can be a huge boost to our applications. When they can't operate, everyone loses.</p>
       </div>
       <a href="https://lpcexpressnews.com/lpcsg-stalls-club-funding-with-communication-delays/" target="_blank" rel="noopener" class="article-chip">
         <span class="article-chip-icon">📰</span>
         <span class="article-chip-text"><strong>LPCSG stalls club funding with communication delays</strong>The Express</span>
       </a>
     </div>
-
     <div class="gold-line"></div>
-
-    <!-- Issue 03 -->
     <div class="issue-item">
       <p class="issue-num">03</p>
       <p class="issue-title">Low Student Awareness &amp; Engagement</p>
       <p class="issue-sub">Just because LPC is a commuter school doesn't mean it has to feel like one.</p>
       <div class="quote-block">
         <p class="quote">"Bro, I only drive here cuz attendance is graded"</p>
-        <p>Last year, <strong style="color:var(--gold2);">less than 12%</strong> of the student body voted. But this campus belongs to all 8,000 of us. Not just those who vote.</p>
+        <p>Last year, <strong>less than 12%</strong> of the student body voted. But this campus belongs to all 8,000 of us.</p>
       </div>
     </div>
-
   </div><!-- /page-issues -->
 
 
@@ -307,19 +250,16 @@
        VISION PAGE
   ══════════════════════════════════════════ -->
   <div class="page" id="page-vision">
-
     <div class="page-header">
       <p class="eyebrow">The Plan</p>
       <h1>My<br><span>Vision</span></h1>
     </div>
-
-    <p style="font-size:0.88rem;color:var(--white70);margin-bottom:1.5rem;line-height:1.6;"><strong style="color:var(--white);">Policy without creativity is just process.</strong> Here's what I'll do on day one — and what I'll build toward.</p>
+    <p style="font-size:0.87rem;color:var(--text2);margin-bottom:1.25rem;line-height:1.65;"><strong style="color:var(--text);">Policy without creativity is just process.</strong> Here's what I'll do.</p>
 
     <p class="section-label">Core Commitments</p>
-
     <div class="vision-item">
       <p class="vision-title">01 — Radical Budget Transparency</p>
-      <p class="vision-body">Publish a plain-English budget summary every semester. Build a public spending dashboard any student can access — no jargon, no gatekeeping.</p>
+      <p class="vision-body">Plain-English budget summaries every semester. A public spending dashboard any student can access.</p>
       <ul class="vision-bullets">
         <li>Semester budget summaries in accessible language</li>
         <li>Online spending tracker updated monthly</li>
@@ -327,10 +267,9 @@
         <li>All agendas and minutes searchable online</li>
       </ul>
     </div>
-
     <div class="vision-item">
       <p class="vision-title">02 — Fix Club Funding</p>
-      <p class="vision-body">Streamline the reimbursement process. Set clear timelines. Build a simple tracker so clubs always know where their request stands.</p>
+      <p class="vision-body">Streamline reimbursements. Set clear timelines. Build a status tracker so clubs know where their request stands.</p>
       <ul class="vision-bullets">
         <li>Map and document the current process</li>
         <li>Propose maximum processing time standards</li>
@@ -338,7 +277,6 @@
         <li>Monthly office hours for club treasurers</li>
       </ul>
     </div>
-
     <div class="vision-item">
       <p class="vision-title">03 — Student Voice in Every Budget</p>
       <p class="vision-body">No major financial decision without students having a chance to weigh in — before the vote, not after.</p>
@@ -346,24 +284,19 @@
         <li>Pre-budget feedback sessions each semester</li>
         <li>Anonymous suggestion channel on this site</li>
         <li>Student feedback summaries in all proposals</li>
-        <li>Published outcomes showing how input shaped decisions</li>
       </ul>
     </div>
 
     <div class="gold-line"></div>
-
     <p class="section-label">Ideas in Action</p>
-
     <div class="vision-item">
       <p class="vision-title">🔬 Clubs as Problem-Solvers</p>
-      <p class="vision-body">Introduce real campus case studies into club projects. Clubs that solve genuine problems earn recognition, awards, and verified volunteer hours — turning extracurriculars into résumé-building experience.</p>
+      <p class="vision-body">Introduce real campus case studies into club projects. Clubs that solve genuine problems earn recognition, awards, and verified volunteer hours.</p>
     </div>
-
     <div class="vision-item">
       <p class="vision-title">📊 Data-Driven Student Government</p>
-      <p class="vision-body">Partner with the Data Science and Journalism clubs to run semesterly surveys and data analyses. Students get research experience; Student Government gets the data it needs to spend wisely.</p>
+      <p class="vision-body">Partner with Data Science and Journalism clubs to run semesterly surveys. Students get research experience; Student Government gets the data it needs to spend wisely.</p>
     </div>
-
     <div class="vision-item">
       <p class="vision-title">💡 Club Fundraising that Meets Real Needs</p>
       <p class="vision-body">Match genuine student needs to clubs that can meet them through fundraising.</p>
@@ -375,30 +308,24 @@
     </div>
 
     <div class="gold-line"></div>
-
-    <div style="text-align:center;padding:0.5rem 0 1rem;">
-      <p style="font-size:1.1rem;font-weight:700;color:var(--white);margin-bottom:0.3rem;">Ready to vote?</p>
-      <p style="font-size:0.82rem;color:var(--white40);margin-bottom:1rem;">Cast your ballot in the Spring 2026 General Election.</p>
-      <button class="btn btn-gold" onclick="switchTab('engage')" style="max-width:240px;margin:0 auto;">Go to Engage →</button>
+    <div style="text-align:center;padding:0.25rem 0 0.75rem;">
+      <p style="font-size:1rem;font-weight:700;color:var(--navy);margin-bottom:0.25rem;">Ready to vote?</p>
+      <p style="font-size:0.8rem;color:var(--text3);margin-bottom:0.85rem;">Spring 2026 General Election</p>
+      <button class="btn btn-gold" onclick="switchTab('engage')" style="max-width:220px;margin:0 auto;">Go to Engage →</button>
     </div>
-
   </div><!-- /page-vision -->
 
 </div><!-- /app -->
 
 <!-- ── Referral Popup ── -->
-<div id="referral-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:300;align-items:center;justify-content:center;padding:1rem;">
-  <div style="background:var(--black2);border:1px solid rgba(212,160,23,0.25);border-radius:16px;padding:1.5rem;width:100%;max-width:360px;">
-    <p style="font-family:var(--font-display);font-size:1.8rem;color:var(--white);margin-bottom:0.25rem;">🎁 Referral Bonus</p>
-    <p style="font-size:0.82rem;color:var(--white70);margin-bottom:1.25rem;line-height:1.5;">Were you referred by another LPC student? You'll both receive <strong style="color:var(--gold2);">+20 bonus tokens</strong>.</p>
-
-    <!-- Step 1: Yes / No -->
+<div id="referral-popup" style="display:none;position:fixed;inset:0;background:rgba(15,31,61,0.55);z-index:300;align-items:center;justify-content:center;padding:1rem;">
+  <div class="referral-popup-inner">
+    <h3>🎁 Referral Bonus</h3>
+    <p>Were you referred by another LPC student? You'll both receive <strong>+20 bonus tokens</strong>.</p>
     <div id="ref-no-step">
-      <button id="ref-yes-btn" class="btn btn-gold" style="margin-bottom:0.6rem;">Yes, I was referred</button>
+      <button id="ref-yes-btn" class="btn btn-gold" style="margin-bottom:0.55rem;">Yes, I was referred</button>
       <button id="ref-no-btn" class="btn btn-outline">No thanks, start with 100</button>
     </div>
-
-    <!-- Step 2: Enter referrer email -->
     <div id="ref-yes-step" style="display:none;">
       <div class="field-wrap">
         <label class="input-label" for="ref-input">Referrer's Campus Email</label>
@@ -410,35 +337,12 @@
   </div>
 </div>
 
-
-<!-- ── Bottom Tab Bar ── -->
-<nav id="tab-bar">
-  <button class="tab-btn active" data-tab="engage" onclick="switchTab('engage')">
-    <svg viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-    Engage
-  </button>
-  <button class="tab-btn" data-tab="bio" onclick="switchTab('bio')">
-    <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-    Bio
-  </button>
-  <button class="tab-btn" data-tab="issues" onclick="switchTab('issues')">
-    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-    Issues
-  </button>
-  <button class="tab-btn" data-tab="vision" onclick="switchTab('vision')">
-    <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-    Vision
-  </button>
-</nav>
-
-<!-- Toast notification -->
+<!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<!-- Scripts -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script async src="https://www.instagram.com/embed.js"></script>
 <script src="assets/js/app.js"></script>
-
 </body>
 </html>
