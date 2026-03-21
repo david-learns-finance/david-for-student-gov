@@ -169,6 +169,8 @@ function subscribeMarketStatus() {
     })
     .subscribe();
 }
+
+function renderAllMarkets() {
   const container = document.getElementById('candidate-markets');
   if (!container) return;
   const user = getUser();
