@@ -7,12 +7,27 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ── Candidates config ─────────────────────────────────────────
-// Add/remove candidates here. market_id must match a value in predictions.market_id
 const CANDIDATES = [
-  { market_id: 'david_dof',  name: 'David Tay',          role: 'Director of Finances', isDavid: true },
-  { market_id: 'candidate2', name: 'Candidate 2',         role: 'Position TBD',         isDavid: false },
-  { market_id: 'candidate3', name: 'Candidate 3',         role: 'Position TBD',         isDavid: false },
+  { market_id: 'david_tay',     name: 'David Tay',       isDavid: true  },
+  { market_id: 'manav_r',       name: 'Manav Raghuram',  isDavid: false },
+  { market_id: 'audrey_a',      name: 'Audrey Arabelo',  isDavid: false },
+  { market_id: 'preston_l',     name: 'Preston Lim',     isDavid: false },
+  { market_id: 'bryant_l',      name: 'Bryant Liu',      isDavid: false },
+  { market_id: 'yasin_q',       name: 'Yasin Qureshi',   isDavid: false },
+  { market_id: 'armaan_s',      name: 'Armaan Shah',     isDavid: false },
+  { market_id: 'anthony_v',     name: 'Anthony Vuong',   isDavid: false },
+  { market_id: 'yina_y',        name: 'Yina Yoon',       isDavid: false },
 ];
+
+// Chart colors — top 5 get distinct colors, rest get grey
+const CHART_COLORS = [
+  '#d4a017', // gold — David
+  '#2563eb', // blue
+  '#16a34a', // green
+  '#dc2626', // red
+  '#7c3aed', // purple
+];
+const CHART_GREY = 'rgba(150,160,175,0.5)';
 
 // ── Profanity filter ─────────────────────────────────────────
 const BLOCKED = [
@@ -94,7 +109,7 @@ function subscribeMarket() {
       else                  { marketData[r.market_id].no  += r.tokens; marketData[r.market_id].noCount++;  }
       renderAllMarkets();
       // Also update price chart for David's market
-      if (r.market_id === 'david_dof') loadPriceChart();
+      if (r.market_id === 'david_tay') loadPriceChart();
     })
     .subscribe();
 }
@@ -104,55 +119,78 @@ function renderAllMarkets() {
   if (!container) return;
   const user = getUser();
 
-  container.innerHTML = CANDIDATES.map(c => {
-    const d      = marketData[c.market_id] || { yes: 0, no: 0, yesCount: 0, noCount: 0 };
-    const total  = d.yes + d.no || 1;
-    const yesPct = Math.round(d.yes / total * 100);
-    const noPct  = 100 - yesPct;
-    const userBet = user?.bets?.[c.market_id];
-    const tokens  = user?.tokens || 0;
+  // Group candidates into slides of 3
+  const slides = [];
+  for (let i = 0; i < CANDIDATES.length; i += 3) {
+    slides.push(CANDIDATES.slice(i, i + 3));
+  }
 
-    return `
-    <div class="candidate-market-card${c.isDavid ? ' is-david' : ''}" data-market="${c.market_id}">
-      <p class="cmc-name">${c.name}${c.isDavid ? ' 🌟' : ''}</p>
-      <p class="cmc-role">${c.role}</p>
-      <div class="cmc-odds">
-        <div class="cmc-odds-pill yes">YES ${yesPct}%</div>
-        <div class="cmc-odds-pill no">NO ${noPct}%</div>
-      </div>
-      <div class="cmc-bar"><div class="cmc-bar-fill" style="width:${yesPct}%"></div></div>
-      <p style="font-size:0.67rem;color:var(--text3);margin-bottom:0.6rem;">${d.yesCount + d.noCount} total bet${d.yesCount + d.noCount !== 1 ? 's' : ''}</p>
+  container.innerHTML = `
+    <div class="cmc-carousel" id="cmc-carousel">
+      ${slides.map((group, si) => `
+        <div class="cmc-slide" data-slide="${si}">
+          ${group.map(c => {
+            const d       = marketData[c.market_id] || { yes: 0, no: 0, yesCount: 0, noCount: 0 };
+            const total   = d.yes + d.no || 1;
+            const yesPct  = Math.round(d.yes / total * 100);
+            const noPct   = 100 - yesPct;
+            const userBet = user?.bets?.[c.market_id];
+            const tokens  = user?.tokens || 0;
+            // If user has an existing bet, pre-select that side
+            const yesSelected = userBet?.side === 'yes' || (!userBet && false);
+            const noSelected  = userBet?.side === 'no';
 
-      ${userBet ? `<p class="cmc-existing-bet">✓ Your bet: ${userBet.tokens} tokens on ${userBet.side.toUpperCase()}</p>` : ''}
+            return `
+            <div class="candidate-market-card${c.isDavid ? ' is-david' : ''}" data-market="${c.market_id}">
+              <p class="cmc-name">${c.name}${c.isDavid ? ' 🌟' : ''}</p>
+              <p class="cmc-role">Director of Finances</p>
+              <div class="cmc-odds">
+                <div class="cmc-odds-pill yes">YES ${yesPct}%</div>
+                <div class="cmc-odds-pill no">NO ${noPct}%</div>
+              </div>
+              <div class="cmc-bar"><div class="cmc-bar-fill" style="width:${yesPct}%"></div></div>
+              <p style="font-size:0.67rem;color:var(--text3);margin-bottom:0.5rem;">${d.yesCount + d.noCount} bet${d.yesCount + d.noCount !== 1 ? 's' : ''}</p>
 
-      ${user && tokens > 0 ? `
-        <div class="cmc-bet-row">
-          <div class="cmc-side-btn${userBet && userBet.side !== 'yes' ? '' : ''} ${userBet?.side === 'yes' ? 'selected yes' : ''}"
-               data-market="${c.market_id}" data-side="yes"
-               style="${userBet && userBet.side === 'no' ? 'opacity:0.3;pointer-events:none;' : ''}">
-            👍 YES
-          </div>
-          <div class="cmc-side-btn ${userBet?.side === 'no' ? 'selected no' : ''}"
-               data-market="${c.market_id}" data-side="no"
-               style="${userBet && userBet.side === 'yes' ? 'opacity:0.3;pointer-events:none;' : ''}">
-            👎 NO
-          </div>
+              ${userBet ? `<p class="cmc-existing-bet">✓ ${userBet.tokens} tokens on ${userBet.side.toUpperCase()}</p>` : ''}
+
+              ${user && tokens > 0 ? `
+                <div class="cmc-bet-row">
+                  <div class="cmc-side-btn ${userBet?.side === 'yes' ? 'selected yes' : ''}"
+                       data-market="${c.market_id}" data-side="yes"
+                       style="${userBet?.side === 'no' ? 'opacity:0.3;pointer-events:none;' : ''}">
+                    👍 YES
+                  </div>
+                  <div class="cmc-side-btn ${userBet?.side === 'no' ? 'selected no' : ''}"
+                       data-market="${c.market_id}" data-side="no"
+                       style="${userBet?.side === 'yes' ? 'opacity:0.3;pointer-events:none;' : ''}">
+                    👎 NO
+                  </div>
+                </div>
+                <div class="cmc-wager-row">
+                  <input type="range" class="cmc-slider" data-market="${c.market_id}"
+                         min="1" max="${tokens}" step="1" value="${Math.min(10, tokens)}" />
+                  <span class="cmc-wager-val" id="wager-val-${c.market_id}">${Math.min(10, tokens)}</span>
+                </div>
+                <button class="cmc-bet-btn" data-market="${c.market_id}"
+                  ${userBet ? '' : 'disabled'}>
+                  ${userBet ? `Add more on ${userBet.side.toUpperCase()} →` : 'Select YES or NO'}
+                </button>
+                <p class="err-text" id="bet-err-${c.market_id}"></p>
+              ` : user && tokens === 0 ? `<p style="font-size:0.72rem;color:var(--text3);margin-top:0.4rem;">No tokens remaining.</p>` : ''}
+            </div>`;
+          }).join('')}
         </div>
-        <div class="cmc-wager-row">
-          <input type="range" class="cmc-slider" data-market="${c.market_id}"
-                 min="1" max="${tokens}" step="1" value="${Math.min(10, tokens)}" />
-          <span class="cmc-wager-val" id="wager-val-${c.market_id}">${Math.min(10, tokens)}</span>
-        </div>
-        <button class="cmc-bet-btn" data-market="${c.market_id}" disabled>Select YES or NO</button>
-        <p class="err-text" id="bet-err-${c.market_id}"></p>
-      ` : user && tokens === 0 ? `<p style="font-size:0.75rem;color:var(--text3);margin-top:0.5rem;">No tokens remaining.</p>` : ''}
-    </div>`;
-  }).join('');
+      `).join('')}
+    </div>
+    <div class="cmc-dots" id="cmc-dots"></div>
+  `;
 
-  // Attach slider listeners
+  // Init carousel
+  initCandidateCarousel(slides.length);
+
+  // Slider listeners
   container.querySelectorAll('.cmc-slider').forEach(slider => {
-    const mid = slider.dataset.market;
-    const valEl = document.getElementById('wager-val-' + mid);
+    const valEl = document.getElementById('wager-val-' + slider.dataset.market);
     slider.addEventListener('input', () => { if (valEl) valEl.textContent = slider.value; });
   });
 }
@@ -380,7 +418,51 @@ async function completeRegistration(email, name, referredBy, tokens = 100) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  PRICE PATH CHART — David's market only
+//  CANDIDATE CAROUSEL
+// ══════════════════════════════════════════════════════════════
+
+function initCandidateCarousel(totalSlides) {
+  const carousel = document.getElementById('cmc-carousel');
+  const dotsWrap = document.getElementById('cmc-dots');
+  if (!carousel || totalSlides <= 1) return;
+
+  let current = 0;
+
+  dotsWrap.innerHTML = '';
+  for (let i = 0; i < totalSlides; i++) {
+    const dot = document.createElement('button');
+    dot.className = 'cmc-dot' + (i === 0 ? ' active' : '');
+    dot.setAttribute('aria-label', 'Slide ' + (i + 1));
+    dot.addEventListener('click', () => goTo(i));
+    dotsWrap.appendChild(dot);
+  }
+
+  function goTo(n) {
+    current = (n + totalSlides) % totalSlides;
+    carousel.style.transform = `translateX(-${current * 100}%)`;
+    dotsWrap.querySelectorAll('.cmc-dot').forEach((d, i) => d.classList.toggle('active', i === current));
+  }
+
+  let tx = 0, ty = 0;
+  carousel.addEventListener('touchstart', e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
+  carousel.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - tx;
+    const dy = e.changedTouches[0].clientY - ty;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 35) dx < 0 ? goTo(current + 1) : goTo(current - 1);
+  }, { passive: true });
+
+  let mx = 0, dragging = false;
+  carousel.addEventListener('mousedown', e => { mx = e.clientX; dragging = true; });
+  carousel.addEventListener('mouseup', e => {
+    if (!dragging) return; dragging = false;
+    const dx = e.clientX - mx;
+    if (Math.abs(dx) > 35) dx < 0 ? goTo(current + 1) : goTo(current - 1);
+  });
+  carousel.addEventListener('mouseleave', () => { dragging = false; });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PRICE PATH CHART — all candidates
 // ══════════════════════════════════════════════════════════════
 
 let priceChart = null;
@@ -388,59 +470,113 @@ let priceChart = null;
 async function loadPriceChart() {
   const { data, error } = await sb
     .from('predictions')
-    .select('side, tokens, created_at')
-    .eq('market_id', 'david_dof')
+    .select('market_id, side, tokens, created_at')
     .order('created_at', { ascending: true });
 
   const canvas = document.getElementById('price-chart');
   if (!canvas) return;
-  if (error || !data || data.length < 2) { renderPriceChart([50], ['Now']); return; }
 
-  let yesTotal = 0, noTotal = 0;
-  const points = [], labels = [];
-  data.forEach((bet, i) => {
-    if (bet.side === 'yes') yesTotal += bet.tokens;
-    else noTotal += bet.tokens;
-    points.push(Math.round(yesTotal / (yesTotal + noTotal) * 100));
-    const show = i === 0 || i === data.length - 1 || i % Math.max(1, Math.floor(data.length / 5)) === 0;
-    labels.push(show ? shortTime(bet.created_at) : '');
+  if (error || !data || data.length === 0) { renderPriceChart([], []); return; }
+
+  const allTimes = [...new Set(data.map(d => d.created_at))].sort();
+
+  const datasets = CANDIDATES.map((c, idx) => {
+    const candBets = data.filter(d => d.market_id === c.market_id);
+    if (candBets.length === 0) return null;
+
+    let yesTotal = 0, noTotal = 0;
+    const betMap = {};
+    candBets.forEach(b => {
+      if (b.side === 'yes') yesTotal += b.tokens;
+      else noTotal += b.tokens;
+      betMap[b.created_at] = Math.round(yesTotal / (yesTotal + noTotal) * 100);
+    });
+
+    let lastPct = 50;
+    const points = allTimes.map(t => {
+      if (betMap[t] !== undefined) lastPct = betMap[t];
+      return lastPct;
+    });
+
+    const totalVolume = candBets.reduce((s, b) => s + b.tokens, 0);
+    return { candidate: c, points, totalVolume };
+  }).filter(Boolean);
+
+  // Assign colors — David always gets gold, top 4 others get distinct colors, rest grey
+  const sorted = [...datasets].sort((a, b) => b.totalVolume - a.totalVolume);
+  let colorIdx = 1;
+  sorted.forEach(d => {
+    if (d.candidate.isDavid) { d.color = CHART_COLORS[0]; }
+    else {
+      d.color = colorIdx < CHART_COLORS.length ? CHART_COLORS[colorIdx++] : CHART_GREY;
+    }
   });
-  renderPriceChart(points, labels);
+
+  const labels = allTimes.map((t, i) => {
+    const show = i === 0 || i === allTimes.length - 1 || i % Math.max(1, Math.floor(allTimes.length / 5)) === 0;
+    return show ? shortTime(t) : '';
+  });
+
+  renderPriceChart(datasets, labels);
 }
 
-function renderPriceChart(points, labels) {
+function renderPriceChart(datasets, labels) {
   const canvas = document.getElementById('price-chart');
   if (!canvas) return;
-  const last      = points[points.length - 1];
-  const color     = last >= 50 ? '#16a34a' : '#dc2626';
-  const fillColor = last >= 50 ? 'rgba(22,163,74,0.07)' : 'rgba(220,38,38,0.06)';
   if (priceChart) priceChart.destroy();
+
+  if (!datasets || datasets.length === 0) {
+    priceChart = new Chart(canvas, {
+      type: 'line',
+      data: { labels: ['Now'], datasets: [{ data: [50], borderColor: CHART_GREY, borderWidth: 1.5, pointRadius: 0, tension: 0.3 }] },
+      options: { responsive: true, plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#8896a8', font: { size: 9 } } },
+          y: { min: 0, max: 100, ticks: { color: '#8896a8', font: { size: 9 }, callback: v => v + '%', stepSize: 25 }, grid: { color: 'rgba(15,31,61,0.06)' } }
+        }}
+    });
+    return;
+  }
+
   priceChart = new Chart(canvas, {
     type: 'line',
-    data: { labels, datasets: [{ data: points, borderColor: color, backgroundColor: fillColor,
-      borderWidth: 2, pointRadius: 0, pointHoverRadius: 5,
-      pointHoverBackgroundColor: color, tension: 0.35, fill: true }]},
+    data: {
+      labels,
+      datasets: datasets.map(d => ({
+        label: d.candidate.name,
+        data: d.points,
+        borderColor: d.color,
+        backgroundColor: 'transparent',
+        borderWidth: d.candidate.isDavid ? 2.5 : 1.5,
+        pointRadius: 0, pointHoverRadius: 4,
+        tension: 0.35,
+        borderDash: d.color === CHART_GREY ? [3, 3] : [],
+      }))
+    },
     options: {
       responsive: true, animation: { duration: 350 },
       interaction: { mode: 'index', intersect: false },
       scales: {
-        x: { grid: { display: false }, ticks: { color: '#8896a8', font: { size: 9 }, maxRotation: 0 }},
+        x: { grid: { display: false }, ticks: { color: '#8896a8', font: { size: 9 }, maxRotation: 0 } },
         y: { min: 0, max: 100, grid: { color: 'rgba(15,31,61,0.06)' },
-          ticks: { color: '#8896a8', font: { size: 9 }, callback: v => v + '%', stepSize: 25 }}
+          ticks: { color: '#8896a8', font: { size: 9 }, callback: v => v + '%', stepSize: 25 } }
       },
       plugins: {
-        legend: { display: false },
+        legend: { display: true, position: 'bottom',
+          labels: { color: '#4a5568', font: { size: 9 }, boxWidth: 12, padding: 8,
+            filter: (item, chart) => chart.datasets[item.datasetIndex].borderColor !== CHART_GREY
+          }
+        },
         tooltip: { backgroundColor: '#0f1f3d', borderColor: 'rgba(212,160,23,0.3)', borderWidth: 1,
-          titleColor: 'rgba(255,255,255,0.55)', bodyColor: '#fff', bodyFont: { weight: 'bold', size: 13 },
-          callbacks: { title: () => 'YES probability', label: ctx => ' ' + ctx.parsed.y + '%' }}
+          titleColor: 'rgba(255,255,255,0.55)', bodyColor: '#fff', bodyFont: { size: 11 },
+          callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + ctx.parsed.y + '%' }
+        }
       }
     }
   });
 }
 
-function subscribePriceChart() {
-  // Chart updates via subscribeMarket payload now
-}
+function subscribePriceChart() {}
 
 function shortTime(iso) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
