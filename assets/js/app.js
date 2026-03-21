@@ -247,6 +247,19 @@ document.addEventListener('click', async function(e) {
   if (!betBtn || betBtn.disabled) return;
   if (marketClosed) { showMarketClosed(); return; }
 
+  // Re-check market status from Supabase before processing
+  const { data: setting } = await sb
+    .from('app_settings')
+    .select('value')
+    .eq('key', 'market_status')
+    .single();
+
+  if (setting?.value === 'closed') {
+    marketClosed = true;
+    showMarketClosed();
+    return;
+  }
+
   const mid    = betBtn.dataset.market;
   const card   = document.querySelector(`.candidate-market-card[data-market="${mid}"]`);
   const user   = getUser();
@@ -334,6 +347,20 @@ async function showReferralNotif(user) {
 // ── Registration ─────────────────────────────────────────────
 document.getElementById('reg-btn').addEventListener('click', async () => {
   if (marketClosed) { showMarketClosed(); return; }
+
+  // Re-check market status from Supabase before processing
+  const { data: setting } = await sb
+    .from('app_settings')
+    .select('value')
+    .eq('key', 'market_status')
+    .single();
+
+  if (setting?.value === 'closed') {
+    marketClosed = true;
+    showMarketClosed();
+    return;
+  }
+
   const email = document.getElementById('reg-email').value.trim().toLowerCase();
   const name  = document.getElementById('reg-name').value.trim();
   const errEl = document.getElementById('reg-err');
