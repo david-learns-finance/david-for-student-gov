@@ -46,20 +46,54 @@ function initProfanityFilter() {
   if (window.leoProfanity) {
     window.leoProfanity.loadDictionary();
     window.leoProfanity.add([
-      'fck','fuk','fuq','sh1t','b1tch','b!tch','d1ck','a55','n1gga',
-      'fag','fagg','shemale','tranny','retard','spaz','chink','kike',
-      'wetback','spic','coon','gook','raghead','towelhead',
-      'f u c k','s h i t','n i g g e r'
+      // Bypass patterns
+      'fck','fuk','fuq','sh1t','b1tch','b!tch','d1ck','a55',
+      'f u c k','s h i t','n i g g e r',
+      // Hate slang — racial
+      'nigga','nigger','nig','nigg','n1gga','n1gger',
+      'chink','chinky','gook','jap','spic','spick','wetback',
+      'kike','hymie','raghead','towelhead','sandnigger','camel jockey',
+      'coon','porch monkey','jungle bunny','cotton picker',
+      'beaner','greaser','zipperhead',
+      // Hate slang — gender/sexuality
+      'fag','fagg','faggot','dyke','tranny','shemale','he-she',
+      'ladyboy','trannies','transvestite',
+      // Self-harm/violence phrases
+      'kys','kill yourself','kill ur self','kys nig','go die',
+      'rope yourself','neck yourself','drink bleach',
+      // Other slurs
+      'retard','retarded','spaz','tard','autist',
+      'crip','cripple','midget','mongoloid',
     ]);
   }
 }
 
+// Phrase-level blocklist — catches multi-word combinations
+// that single-word filters miss (e.g. "kys nig")
+const BLOCKED_PHRASES = [
+  'kys','kill yourself','kill ur self','kill u self',
+  'go die','neck yourself','rope yourself','drink bleach',
+  'kys nig','go kill','end yourself',
+];
+
 function localProfanityCheck(text) {
   const normalized = normalizeText(text);
+  const lower = text.toLowerCase();
+  const normalizedLower = normalized.toLowerCase();
+
+  // Word-level check via leo-profanity
   if (window.leoProfanity) {
-    return window.leoProfanity.check(text) || window.leoProfanity.check(normalized);
+    if (window.leoProfanity.check(text) || window.leoProfanity.check(normalized)) return true;
+  } else {
+    if (/\b(fuck|shit|ass|bitch|cunt|dick|nigger|nigga|faggot|fag|retard)\b/i.test(normalizedLower)) return true;
   }
-  return /\b(fuck|shit|ass|bitch|cunt|dick|nigger|nigga|faggot|fag|retard)\b/i.test(normalized);
+
+  // Phrase-level check
+  for (const phrase of BLOCKED_PHRASES) {
+    if (lower.includes(phrase) || normalizedLower.includes(phrase)) return true;
+  }
+
+  return false;
 }
 
 async function isProfane(text) {
